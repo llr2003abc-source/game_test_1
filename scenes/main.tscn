@@ -1,0 +1,17 @@
+[gd_scene format=3 uid="uid://0appnkkfeup2"]
+
+[ext_resource type="Script" uid="uid://bl714i5abavrv" path="res://scripts/test_controller.gd" id="1_o5qli"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_sgp6g"]
+
+[node name="Main" type="Node3D" unique_id=1515403426]
+script = ExtResource("1_o5qli")
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=339075130]
+transform = Transform3D(0.8574929, -0.16692448, 0.4866643, 0, 0.9459053, 0.32444283, -0.5144958, -0.27820742, 0.8111071, 3, 2, 5)
+current = true
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1777804006]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1108678592]
+mesh = SubResource("BoxMesh_sgp6g")

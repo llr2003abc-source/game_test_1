@@ -1,0 +1,18 @@
+[gd_scene format=3 uid="uid://cilnc2sgl0s1y"]
+
+[ext_resource type="Script" uid="uid://riy05wbuuquc" path="res://scripts/weapons/hit_marker.gd" id="1_script"]
+
+[sub_resource type="StandardMaterial3D" id="MarkerMaterial"]
+shading_mode = 0
+albedo_color = Color(1, 0.25, 0.08, 1)
+
+[sub_resource type="SphereMesh" id="MarkerMesh"]
+material = SubResource("MarkerMaterial")
+radius = 0.025
+height = 0.05
+radial_segments = 12
+rings = 6
+
+[node name="HitMarker" type="MeshInstance3D" unique_id=504705778]
+mesh = SubResource("MarkerMesh")
+script = ExtResource("1_script")
