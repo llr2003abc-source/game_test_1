@@ -71,6 +71,13 @@ reload={
 ]
 }
 
+[layer_names]
+
+3d_physics/layer_1="World"
+3d_physics/layer_2="Player"
+3d_physics/layer_3="Hurtbox"
+3d_physics/layer_4="TargetBody"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

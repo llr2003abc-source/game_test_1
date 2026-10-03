@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="AmmoData" format=3 uid="uid://c1jaafhvw4tbw"]
+
+[ext_resource type="Script" uid="uid://dhpsc4fcm27yl" path="res://scripts/weapons/ammo_data.gd" id="1_ammo"]
+
+[resource]
+script = ExtResource("1_ammo")
+ammo_name = "Test Round"

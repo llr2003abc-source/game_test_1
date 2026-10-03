@@ -1,0 +1,25 @@
+ data/ammo/test_round.tres                |  10 [32m++[m
+ data/weapons/test_rifle.tres             |   7 [32m+[m[31m-[m
+ project.godot                            |   7 [32m+[m
+ scenes/levels/test_level.tscn            |   4 [32m+[m
+ scenes/player/player.tscn                |   1 [32m+[m
+ scenes/targets/damageable_target.tscn    | 121 [32m+++++++++++++++[m
+ scripts/combat/damage_info.gd            |  11 [32m++[m
+ scripts/combat/damage_info.gd.uid        |   1 [32m+[m
+ scripts/combat/health_component.gd       |  33 [32m++++[m
+ scripts/combat/health_component.gd.uid   |   1 [32m+[m
+ scripts/combat/hurtbox.gd                |  11 [32m++[m
+ scripts/combat/hurtbox.gd.uid            |   1 [32m+[m
+ scripts/targets/damageable_target.gd     |  28 [32m++++[m
+ scripts/targets/damageable_target.gd.uid |   1 [32m+[m
+ scripts/weapons/ammo_data.gd             |   7 [32m+[m
+ scripts/weapons/ammo_data.gd.uid         |   1 [32m+[m
+ scripts/weapons/firearm.gd               |  15 [32m+[m[31m-[m
+ scripts/weapons/weapon_data.gd           |   6 [32m+[m[31m-[m
+ tests/combat_hitscan_test.gd             | 138 [32m+++++++++++++++++[m
+ tests/combat_hitscan_test.gd.uid         |   1 [32m+[m
+ tests/combat_test.gd                     |  74 [32m+++++++++[m
+ tests/combat_test.gd.uid                 |   1 [32m+[m
+ tests/fps_regression_test.gd             | 249 [32m+++++++++++++++++++++++++++++++[m
+ tests/fps_regression_test.gd.uid         |   1 [32m+[m
+ 24 files changed, 722 insertions(+), 8 deletions(-)

@@ -1,16 +1,9 @@
-[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="WeaponData" format=3 uid="uid://dxo1q1y66l1tk"]
 
-[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1_data"]
+[ext_resource type="Script" uid="uid://ncd8iqjc34wc" path="res://scripts/weapons/weapon_data.gd" id="1_data"]
+[ext_resource type="Resource" path="res://data/ammo/test_round.tres" id="2_ammo"]
 
 [resource]
 script = ExtResource("1_data")
 weapon_name = "Test Rifle"
-magazine_size = 30
-rounds_per_minute = 600.0
-reload_time = 2.0
-range = 1000.0
-damage = 30.0
-hip_spread_degrees = 1.5
-ads_spread_degrees = 0.25
-recoil_pitch = 0.8
-recoil_yaw = 0.25
+ammo_data = ExtResource("2_ammo")

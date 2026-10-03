@@ -8,6 +8,8 @@ enum FireMode { SEMI, AUTO }
 
 const HIT_MARKER_SCENE: PackedScene = preload("res://scenes/weapons/hit_marker.tscn")
 const MUZZLE_FLASH_DURATION: float = 0.05
+# Physics layers 1 (World) and 3 (Hurtbox); TargetBody only blocks movement.
+const HITSCAN_COLLISION_MASK: int = 1 | 4
 
 @export var weapon_data: WeaponData
 @export var fire_mode: FireMode = FireMode.AUTO
@@ -100,8 +102,9 @@ func _fire_shot() -> void:
 	var origin: Vector3 = camera.global_position
 	var direction: Vector3 = _get_shot_direction()
 	var query := PhysicsRayQueryParameters3D.create(
-		origin, origin + direction * weapon_data.range, 1, [player.get_rid()]
+		origin, origin + direction * weapon_data.max_range, HITSCAN_COLLISION_MASK, [player.get_rid()]
 	)
+	query.collide_with_areas = true
 	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
 	if not hit.is_empty():
 		var hit_position: Vector3 = hit["position"]
@@ -111,6 +114,16 @@ func _fire_shot() -> void:
 		get_tree().current_scene.add_child(marker)
 		marker.global_position = hit_position + hit_normal * 0.01
 		print("Hit %s at %s" % [collider.name, hit_position])
+		if collider.has_method("receive_hit"):
+			var damage_info := DamageInfo.new()
+			damage_info.damage = weapon_data.ammo_data.damage
+			damage_info.hit_position = hit_position
+			damage_info.hit_normal = hit_normal
+			damage_info.hit_direction = direction
+			damage_info.source = player
+			damage_info.weapon = self
+			damage_info.ammo_data = weapon_data.ammo_data
+			collider.receive_hit(damage_info)
 
 	_flash_remaining = MUZZLE_FLASH_DURATION
 	muzzle_flash.visible = true

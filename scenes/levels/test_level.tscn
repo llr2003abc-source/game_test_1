@@ -2,6 +2,7 @@
 
 [ext_resource type="PackedScene" uid="uid://cyr775nh4yhwq" path="res://scenes/player/player.tscn" id="1_player"]
 [ext_resource type="Script" uid="uid://c0kqbmmool65k" path="res://scripts/weapons/ammo_hud.gd" id="2_yautc"]
+[ext_resource type="PackedScene" uid="uid://f0l6jpw630r4" path="res://scenes/targets/damageable_target.tscn" id="3_fr1um"]
 
 [sub_resource type="Environment" id="Environment_jbqir"]
 background_mode = 1
@@ -223,3 +224,6 @@ horizontal_alignment = 2
 vertical_alignment = 1
 script = ExtResource("2_yautc")
 firearm_path = NodePath("../../Player/Head/Camera3D/WeaponRoot")
+
+[node name="DamageableTarget" parent="." unique_id=646589950 instance=ExtResource("3_fr1um")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, 3)
