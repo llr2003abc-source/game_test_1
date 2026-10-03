@@ -70,7 +70,10 @@ func _run() -> void:
 
 	for zone in [{"node": "Torso", "name": &"torso", "hp": [70.0, 40.0, 10.0, 0.0]}, {"node": "Head", "name": &"head", "hp": [40.0, 0.0]}, {"node": "Legs", "name": &"legs", "hp": [82.0, 64.0, 46.0, 28.0, 10.0, 0.0]}]:
 		target.reset_target()
-		firearm.current_ammo = 30
+		firearm.loaded_magazine.initialize_full(firearm.weapon_data.magazine_data)
+		firearm.chambered_round = null
+		firearm.state = Firearm.State.EMPTY
+		firearm.chamber_next_round()
 		var area: Area3D = target.get_node("Hurtboxes/" + zone.node)
 		check(area.collision_layer == 4 and area.collision_mask == 0, "%s Hurtbox uses layer 3 and no movement mask" % zone.node)
 		var before_deaths: int = events.deaths
@@ -90,7 +93,7 @@ func _run() -> void:
 		check(markers(level).size() == before_markers + 1, "dead Hurtbox still produces HitMarker")
 
 	var info: Variant = events.info
-	check(info.source == player and info.weapon == firearm and info.ammo_data == firearm.weapon_data.ammo_data, "hit metadata identifies source, weapon and ammo")
+	check(info.source == player and info.weapon == firearm and info.ammo_data == firearm.weapon_data.magazine_data.default_ammo, "hit metadata identifies source, weapon and actual loaded ammo")
 	check(is_equal_approx(info.hit_direction.length(), 1.0) and is_equal_approx(info.hit_normal.length(), 1.0), "hit direction and surface normal are unit vectors")
 	var last_marker: Node3D = markers(level).back()
 	check(last_marker.global_position.distance_to(info.hit_position + info.hit_normal * 0.01) < 0.0001, "impact offset is exactly normal * 0.01")

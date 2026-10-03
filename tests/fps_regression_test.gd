@@ -19,6 +19,18 @@ func frames(count: int) -> void:
 func _on_shot(_pitch: float, _yaw: float) -> void:
 	shots += 1
 
+func round_count(firearm: Node) -> int:
+	return firearm.loaded_magazine.get_round_count() + (1 if firearm.chambered_round != null else 0)
+
+func set_ammunition(firearm: Node, count: int) -> void:
+	# Reset this test fixture using real rounds, never an ammunition counter.
+	firearm.loaded_magazine.initialize_full(firearm.weapon_data.magazine_data)
+	for i in range(firearm.loaded_magazine.get_round_count() - count):
+		firearm.loaded_magazine.pop_round()
+	firearm.chambered_round = null
+	firearm.state = Firearm.State.EMPTY
+	firearm.chamber_next_round()
+
 func markers(level: Node) -> Array[Node]:
 	var result: Array[Node] = []
 	for child in level.get_children():
@@ -44,7 +56,7 @@ func _run() -> void:
 	var flash: OmniLight3D = firearm.get_node("Muzzle/MuzzleFlash")
 	firearm.shot_fired.connect(_on_shot)
 	await frames(45)
-	check(firearm.current_ammo == 30 and label.text == "30 / 30", "initial magazine and HUD 30 / 30")
+	check(round_count(firearm) == 30 and label.text == "MAG 29 | CHAMBER 1\nSPARE MAGS: 2", "initial magazine, chamber and HUD 29 + 1")
 	check(firearm.fire_mode == 1, "default fire mode AUTO")
 	check(player.is_on_floor(), "gravity and floor collision preserved")
 	player.set_physics_process(false)
@@ -59,7 +71,7 @@ func _run() -> void:
 	var before: int = shots
 	firearm.set_trigger(true, true)
 	firearm._physics_process(0.001)
-	check(shots == before + 1 and firearm.current_ammo == 29 and label.text == "29 / 30", "single click consumes one round and updates HUD")
+	check(shots == before + 1 and round_count(firearm) == 29 and label.text == "MAG 28 | CHAMBER 1\nSPARE MAGS: 2", "single click consumes one round and updates HUD")
 	check(flash.visible, "shot briefly enables muzzle light")
 	for i in range(60):
 		firearm.set_trigger(true, false)
@@ -79,7 +91,7 @@ func _run() -> void:
 	var counts: Array[int] = []
 	firearm.fire_mode = 1
 	for hz in [30, 60, 120]:
-		firearm.current_ammo = 30
+		set_ammunition(firearm, 30)
 		firearm.set_trigger(false, false)
 		firearm._physics_process(0.5)
 		before = shots
@@ -92,33 +104,35 @@ func _run() -> void:
 	check(counts.max() - counts.min() <= 1, "RPM independent of timestep")
 	firearm.set_trigger(false, false)
 	firearm._physics_process(5.0)
-	firearm.current_ammo = 30
+	set_ammunition(firearm, 30)
 	before = shots
 	firearm.set_trigger(true, true)
 	firearm._physics_process(0.01)
 	check(shots == before + 1, "idle time does not accumulate burst credit")
 	firearm.set_trigger(false, false)
 	firearm._physics_process(0.5)
-	firearm.current_ammo = 3
+	set_ammunition(firearm, 3)
 	before = shots
 	for i in range(60):
 		firearm.set_trigger(true, i == 0)
 		firearm._physics_process(1.0 / 60.0)
-	check(shots == before + 3 and firearm.current_ammo == 0 and label.text == "0 / 30", "empty magazine stops AUTO exactly at zero")
+	check(shots == before + 3 and round_count(firearm) == 0 and label.text == "MAG 0 | CHAMBER 0\nSPARE MAGS: 2", "empty magazine and chamber stop AUTO exactly at zero")
 	firearm._physics_process(2.0)
 	check(shots == before + 3, "empty trigger cannot fire")
 	firearm.request_reload()
-	check(firearm.is_reloading and label.text == "Reloading...", "reload starts and HUD shows Reloading")
+	check(firearm.state == Firearm.State.RELOADING and label.text.begins_with("Reloading..."), "reload starts and HUD shows Reloading")
 	before = shots
 	firearm.set_trigger(true, true)
 	firearm._physics_process(1.9)
-	check(firearm.current_ammo == 0 and shots == before and firearm.is_reloading, "reload blocks fire and does not finish early")
+	check(round_count(firearm) == 0 and shots == before and firearm.state == Firearm.State.RELOADING, "reload blocks fire and does not finish early")
 	firearm._physics_process(0.11)
-	check(not firearm.is_reloading and firearm.current_ammo == 30 and shots == before and label.text == "30 / 30", "reload completes after two seconds without firing on completion frame")
+	check(firearm.state == Firearm.State.READY and round_count(firearm) == 30 and shots == before and label.text == "MAG 29 | CHAMBER 1\nSPARE MAGS: 2", "empty reload completes after two seconds without firing on completion frame")
 	firearm.set_trigger(false, false)
 	firearm._physics_process(0.5)
+	firearm.loaded_magazine.push_round(firearm.weapon_data.magazine_data.default_ammo)
+	firearm.publish_weapon_state()
 	firearm.request_reload()
-	check(not firearm.is_reloading, "full magazine ignores reload")
+	check(firearm.state == Firearm.State.READY, "full magazine with loaded chamber ignores reload")
 	data.hip_spread_degrees = 1.5
 	data.ads_spread_degrees = 0.25
 	player.rotation.y = PI / 2.0
@@ -236,13 +250,15 @@ func _run() -> void:
 	click.pressed = false
 	Input.parse_input_event(click)
 	await frames(2)
-	firearm.current_ammo = 29
+	for magazine in firearm.spare_magazines:
+		magazine.initialize_full(firearm.weapon_data.magazine_data)
+	set_ammunition(firearm, 29)
 	Input.action_press("reload")
 	await frames(2)
 	Input.action_release("reload")
-	check(firearm.is_reloading, "R reload request reaches Firearm")
+	check(firearm.state == Firearm.State.RELOADING, "R reload request reaches Firearm")
 	await create_timer(2.2).timeout
-	check(not firearm.is_reloading and firearm.current_ammo == 30 and label.text == "30 / 30", "real-time reload completes and restores HUD")
+	check(firearm.state == Firearm.State.READY and round_count(firearm) == 31 and label.text == "MAG 30 | CHAMBER 1\nSPARE MAGS: 2", "real-time tactical reload completes and restores HUD")
 	print("FPS_REGRESSION_RESULT failures=" + str(failures))
 	level.queue_free()
 	await process_frame

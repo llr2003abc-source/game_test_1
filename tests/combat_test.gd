@@ -22,7 +22,7 @@ func _run() -> void:
 	check(ammo.ammo_name == "Test Round" and is_equal_approx(ammo.damage, 30.0), "Test Round supplies 30 damage")
 	check(is_equal_approx(ammo.muzzle_velocity, 800.0) and is_equal_approx(ammo.penetration, 20.0), "reserved ammo values are stored")
 	var weapon: Variant = load("res://data/weapons/test_rifle.tres")
-	check(weapon.ammo_data == ammo and is_equal_approx(weapon.max_range, 1000.0), "rifle references ammo and max_range")
+	check(weapon.magazine_data.default_ammo == ammo and is_equal_approx(weapon.max_range, 1000.0), "rifle references magazine default ammo and max_range")
 
 	var health: Variant = load("res://scripts/combat/health_component.gd").new()
 	var info: Variant = load("res://scripts/combat/damage_info.gd").new()

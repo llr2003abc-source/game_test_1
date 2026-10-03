@@ -4,8 +4,10 @@ extends Label
 @onready var firearm: Firearm = get_node(firearm_path)
 
 func _ready() -> void:
-	firearm.ammo_changed.connect(_update_ammo)
-	_update_ammo(firearm.current_ammo, firearm.weapon_data.magazine_size, firearm.is_reloading)
+	firearm.weapon_state_changed.connect(_update_weapon_state)
+	firearm.publish_weapon_state()
 
-func _update_ammo(ammo: int, capacity: int, reloading: bool) -> void:
-	text = "Reloading..." if reloading else "%d / %d" % [ammo, capacity]
+func _update_weapon_state(magazine_rounds: int, chamber_loaded: bool, spare_magazine_count: int, state: int) -> void:
+	text = "MAG %d | CHAMBER %d\nSPARE MAGS: %d" % [magazine_rounds, 1 if chamber_loaded else 0, spare_magazine_count]
+	if state == Firearm.State.RELOADING:
+		text = "Reloading...\n" + text

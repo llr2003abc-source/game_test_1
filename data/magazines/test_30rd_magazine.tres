@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="MagazineData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/magazine_data.gd" id="1_magazine"]
+[ext_resource type="Resource" path="res://data/ammo/test_round.tres" id="2_ammo"]
+
+[resource]
+script = ExtResource("1_magazine")
+magazine_name = "Test 30-Round Magazine"
+capacity = 30
+default_ammo = ExtResource("2_ammo")
