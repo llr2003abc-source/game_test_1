@@ -1,10 +1,10 @@
 class_name Firearm
 extends Node3D
 
-signal weapon_state_changed(magazine_rounds: int, chamber_loaded: bool, spare_magazine_count: int, state: State)
+signal weapon_state_changed(magazine_rounds: int, chamber_loaded: bool, spare_magazine_count: int, state: WeaponRuntime.State)
 signal shot_fired(pitch: float, yaw: float)
 
-enum State { READY, RELOADING, EMPTY }
+const State = WeaponRuntime.State
 const FireMode = WeaponData.FireMode
 
 const HIT_MARKER_SCENE: PackedScene = preload("res://scenes/weapons/hit_marker.tscn")
@@ -13,19 +13,47 @@ const MUZZLE_FLASH_DURATION: float = 0.05
 # Physics layers 1 (World) and 3 (Hurtbox); TargetBody only blocks movement.
 const HITSCAN_COLLISION_MASK: int = 1 | 4
 
-@export var weapon_data: WeaponData
+@export var weapon_data: WeaponData:
+	get:
+		return weapon_runtime.weapon_data if weapon_runtime != null else weapon_data
+	set(value):
+		weapon_data = value
+		if weapon_runtime != null:
+			weapon_runtime.weapon_data = value
 @export var injury_component: BodyInjuryComponent
-var fire_mode: WeaponData.FireMode = WeaponData.FireMode.AUTO
-var state: State = State.EMPTY
-var chambered_round: AmmoData = null
-var loaded_magazine: MagazineInstance
+var weapon_runtime: WeaponRuntime
+var fire_mode: WeaponData.FireMode:
+	get:
+		return weapon_runtime.selected_fire_mode if weapon_runtime != null else FireMode.AUTO
+	set(value):
+		if weapon_runtime != null:
+			weapon_runtime.selected_fire_mode = value
+var state: WeaponRuntime.State:
+	get:
+		return weapon_runtime.state if weapon_runtime != null else State.EMPTY
+	set(value):
+		if weapon_runtime != null:
+			weapon_runtime.state = value
+var chambered_round: AmmoData:
+	get:
+		return weapon_runtime.chambered_round if weapon_runtime != null else null
+	set(value):
+		if weapon_runtime != null:
+			weapon_runtime.chambered_round = value
+var loaded_magazine: MagazineInstance:
+	get:
+		return weapon_runtime.loaded_magazine if weapon_runtime != null else null
+	set(value):
+		if weapon_runtime != null:
+			weapon_runtime.loaded_magazine = value
+# LEGACY TEST / PRE-INVENTORY PROVIDER. Phase 9 will replace this source.
 var spare_magazines: Array[MagazineInstance] = []
 var is_aiming: bool = false
 var _trigger_held: bool = false
 var _trigger_pressed: bool = false
-var _shot_cooldown: float = 0.0
-var _reload_remaining: float = 0.0
-var _reload_magazine: MagazineInstance
+var _reload_remaining: float:
+	get:
+		return weapon_runtime.reload_remaining if weapon_runtime != null else 0.0
 var _flash_remaining: float = 0.0
 var _random := RandomNumberGenerator.new()
 
@@ -37,28 +65,51 @@ var _random := RandomNumberGenerator.new()
 func _ready() -> void:
 	# Run after PlayerController has supplied this physics tick's inputs.
 	process_physics_priority = 1
-	fire_mode = weapon_data.fire_mode
-	loaded_magazine = MagazineInstance.new()
-	loaded_magazine.initialize_full(weapon_data.magazine_data)
-	for i in range(2):
-		var spare := MagazineInstance.new()
-		spare.initialize_full(weapon_data.magazine_data)
-		spare_magazines.append(spare)
 	_random.randomize()
 	muzzle_flash.visible = false
-	chamber_next_round()
+	if weapon_runtime == null:
+		var magazine := MagazineInstance.new()
+		magazine.initialize_full(weapon_data.magazine_data)
+		var runtime := WeaponRuntime.new()
+		runtime.initialize(weapon_data, magazine)
+		for i in range(2):
+			var spare := MagazineInstance.new()
+			spare.initialize_full(weapon_data.magazine_data)
+			spare_magazines.append(spare)
+		bind_runtime(runtime)
+		runtime.chamber_next_round()
+	else:
+		bind_runtime(weapon_runtime)
+
+func bind_runtime(runtime: WeaponRuntime) -> void:
+	if weapon_runtime != null:
+		if weapon_runtime.state_changed.is_connected(publish_weapon_state):
+			weapon_runtime.state_changed.disconnect(publish_weapon_state)
+		if weapon_runtime.reload_finished.is_connected(_on_reload_finished):
+			weapon_runtime.reload_finished.disconnect(_on_reload_finished)
+	weapon_runtime = runtime
+	if runtime != null:
+		weapon_data = runtime.weapon_data
+		runtime.state_changed.connect(publish_weapon_state)
+		runtime.reload_finished.connect(_on_reload_finished)
+	_trigger_held = false
+	_trigger_pressed = false
+	is_aiming = false
+	_flash_remaining = 0.0
+	if is_instance_valid(muzzle_flash):
+		muzzle_flash.visible = false
+	publish_weapon_state()
+
+func unbind_runtime() -> WeaponRuntime:
+	var previous: WeaponRuntime = weapon_runtime
+	bind_runtime(null)
+	return previous
+
+func _exit_tree() -> void:
+	unbind_runtime()
 
 func chamber_next_round() -> bool:
-	if state == State.RELOADING or chambered_round != null:
-		return false
-	if loaded_magazine == null or loaded_magazine.is_empty():
-		state = State.EMPTY
-		publish_weapon_state()
-		return false
-	chambered_round = loaded_magazine.pop_round()
-	state = State.READY
-	publish_weapon_state()
-	return true
+	return weapon_runtime.chamber_next_round() if weapon_runtime != null else false
 
 func select_reload_magazine() -> MagazineInstance:
 	var selected: MagazineInstance = null
@@ -68,71 +119,48 @@ func select_reload_magazine() -> MagazineInstance:
 	return selected
 
 func set_trigger(held: bool, just_pressed: bool = false) -> void:
-	_trigger_held = held
-	_trigger_pressed = _trigger_pressed or just_pressed
+	_trigger_held = held and weapon_runtime != null
+	_trigger_pressed = (_trigger_pressed or just_pressed) and weapon_runtime != null
 
 func set_aiming(aiming: bool) -> void:
-	is_aiming = aiming
+	is_aiming = aiming and weapon_runtime != null
 
 func request_reload() -> void:
-	if state == State.RELOADING:
+	if weapon_runtime == null:
 		return
-	if chambered_round != null and loaded_magazine != null and loaded_magazine.is_full():
+	var replacement: MagazineInstance = select_reload_magazine()
+	var duration: float = weapon_data.reload_time * (injury_component.get_reload_multiplier() if injury_component != null else 1.0)
+	if not weapon_runtime.begin_reload(replacement, duration):
 		return
-	_reload_magazine = select_reload_magazine()
-	if _reload_magazine == null:
-		return
-	state = State.RELOADING
-	_reload_remaining = weapon_data.reload_time * (injury_component.get_reload_multiplier() if injury_component != null else 1.0)
 	_trigger_pressed = false
-	publish_weapon_state()
 	print("Reloading...")
 
 func _physics_process(delta: float) -> void:
+	if not is_finite(delta) or delta < 0.0:
+		return
 	_flash_remaining = maxf(0.0, _flash_remaining - delta)
 	muzzle_flash.visible = _flash_remaining > 0.0
-	_shot_cooldown -= delta
+	if weapon_runtime == null:
+		return
+	var wants_shot: bool = _trigger_pressed if fire_mode == FireMode.SEMI else (_trigger_held or _trigger_pressed)
+	var was_reloading: bool = state == State.RELOADING
+	weapon_runtime.tick(delta, wants_shot and fire_mode == FireMode.AUTO and not was_reloading)
 
-	if state == State.RELOADING:
-		_shot_cooldown = maxf(0.0, _shot_cooldown)
-		_reload_remaining = maxf(0.0, _reload_remaining - delta)
+	if was_reloading:
 		_trigger_pressed = false
-		if _reload_remaining == 0.0:
-			_complete_reload()
-			print("Reload complete")
 		return
 
-	var wants_shot: bool = _trigger_pressed if fire_mode == FireMode.SEMI else (_trigger_held or _trigger_pressed)
-	if state == State.READY and chambered_round != null and wants_shot and _shot_cooldown <= 0.0:
-		var interval: float = 60.0 / weapon_data.rounds_per_minute
-		if fire_mode == FireMode.SEMI:
-			_fire_shot()
-			_shot_cooldown = interval
-		else:
-			# Preserve elapsed-time remainder, including on long physics ticks.
-			while _shot_cooldown <= 0.0 and chambered_round != null:
-				_fire_shot()
-				_shot_cooldown += interval
-				if not _trigger_held:
-					break
-
-	if not _trigger_held or fire_mode == FireMode.SEMI or chambered_round == null:
-		# Idle/reload/empty time must never accumulate a future burst.
-		_shot_cooldown = maxf(0.0, _shot_cooldown)
+	if state == State.READY and wants_shot:
+		while _fire_shot():
+			if fire_mode == FireMode.SEMI or not _trigger_held:
+				break
 	_trigger_pressed = false
 
-func _complete_reload() -> void:
-	var previous_magazine: MagazineInstance = loaded_magazine
-	spare_magazines.erase(_reload_magazine)
-	loaded_magazine = _reload_magazine
-	_reload_magazine = null
-	if previous_magazine != null:
-		spare_magazines.append(previous_magazine)
-	state = State.READY if chambered_round != null else State.EMPTY
-	if chambered_round == null:
-		chamber_next_round()
-	else:
-		publish_weapon_state()
+func _on_reload_finished(result: WeaponReloadResult) -> void:
+	spare_magazines.erase(result.new_magazine)
+	if result.old_magazine != null:
+		spare_magazines.append(result.old_magazine)
+	print("Reload complete")
 
 func _get_shot_direction() -> Vector3:
 	var spread: float = weapon_data.ads_spread_degrees if is_aiming else weapon_data.hip_spread_degrees
@@ -153,11 +181,13 @@ func get_camera_aim_point(direction: Vector3 = Vector3.ZERO) -> Vector3:
 	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
 	return endpoint if hit.is_empty() else hit["position"]
 
-func _fire_shot() -> void:
-	if state != State.READY or chambered_round == null:
-		return
-	var fired_round: AmmoData = chambered_round
-	chambered_round = null
+func _fire_shot() -> bool:
+	if weapon_runtime == null:
+		return false
+	var result: WeaponFireResult = weapon_runtime.try_fire()
+	if not result.success:
+		return false
+	var fired_round: AmmoData = result.fired_round
 
 	var direction: Vector3 = _get_shot_direction()
 	if weapon_data.fire_model == WeaponData.FireModel.PROJECTILE:
@@ -177,11 +207,11 @@ func _fire_shot() -> void:
 		deg_to_rad(weapon_data.recoil_pitch) * recoil_multiplier,
 		deg_to_rad(_random.randf_range(-weapon_data.recoil_yaw, weapon_data.recoil_yaw)) * recoil_multiplier
 	)
-	chamber_next_round()
 	print("MAG %d | CHAMBER %d | SPARE MAGS %d" % [
 		loaded_magazine.get_round_count() if loaded_magazine != null else 0,
 		1 if chambered_round != null else 0, spare_magazines.size()
 	])
+	return true
 
 func _fire_hitscan(direction: Vector3, fired_round: AmmoData) -> void:
 	var origin: Vector3 = camera.global_position
