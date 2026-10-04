@@ -43,6 +43,8 @@ func _run() -> void:
 	var camera: Camera3D = player.get_node("Head/Camera3D")
 	var firearm: Variant = player.get_node("Head/Camera3D/WeaponRoot")
 	var target: Variant = level.get_node("DamageableTarget")
+	# Preserve Phase 5 unarmored damage fixtures; armor is tested separately.
+	target.get_node("ArmorComponent").unequip_armor()
 	var health: Variant = target.get_node("HealthComponent")
 	var label: Label3D = target.get_node("DebugHealthLabel")
 	var target_mesh: Node3D = target.get_node("Mesh")
@@ -62,11 +64,11 @@ func _run() -> void:
 		events.hits += 1
 		events.info = info)
 	await frames(5)
-	check(label.text == "100 / 100" and target_mesh.visible, "target starts alive with health label")
+	check(label.text == "HP: 100 / 100\nARMOR: NONE" and target_mesh.visible, "target starts alive with health label")
 	check(player.collision_layer == 2 and player.collision_mask == 9, "player retains its layer and collides with World + TargetBody")
 	check(target.get_node("PhysicsBody").collision_layer == 8, "physical target body has independent movement layer")
 	health.apply_damage(1.0)
-	check(health.current_health == 99.0 and label.text == "99 / 100", "debug target accepts HealthComponent damage without optional metadata")
+	check(health.current_health == 99.0 and label.text == "HP: 99 / 100\nARMOR: NONE", "debug target accepts HealthComponent damage without optional metadata")
 	target.reset_target()
 
 	for zone in [{"node": "Torso", "name": &"torso", "hp": [70.0, 40.0, 10.0, 0.0]}, {"node": "Head", "name": &"head", "hp": [40.0, 0.0]}, {"node": "Legs", "name": &"legs", "hp": [82.0, 64.0, 46.0, 28.0, 10.0, 0.0]}]:
@@ -84,8 +86,8 @@ func _run() -> void:
 			check(is_equal_approx(health.current_health, expected_hp), "real hitscan %s HP -> %.0f" % [zone.node, expected_hp])
 			check(markers(level).size() == before_markers + 1, "Hurtbox hit preserves original HitMarker")
 			var info: Variant = events.info
-			check(info != null and info.hit_zone == zone.name and info.damage == 30.0, "DamageInfo carries correct zone and AmmoData damage")
-		check(health.is_dead() and label.text == "DEAD" and not target_mesh.visible, "%s death updates debug visuals" % zone.node)
+			check(info != null and info.hit_zone == zone.name and info.base_flesh_damage == 30.0, "DamageInfo carries correct zone and AmmoData damage")
+		check(health.is_dead() and label.text.begins_with("DEAD") and not target_mesh.visible, "%s death updates debug visuals" % zone.node)
 		check(events.deaths == before_deaths + 1, "target emits one death for this life")
 		var before_hits: int = events.hits
 		var before_markers: int = markers(level).size()
@@ -99,7 +101,7 @@ func _run() -> void:
 	var last_marker: Node3D = markers(level).back()
 	check(last_marker.global_position.distance_to(info.hit_position + info.hit_normal * 0.01) < 0.0001, "impact offset is exactly normal * 0.01")
 	await create_timer(3.2).timeout
-	check(health.current_health == 100.0 and not health.is_dead() and label.text == "100 / 100" and target_mesh.visible, "debug timer resets target after about 3 seconds")
+	check(health.current_health == 100.0 and not health.is_dead() and label.text == "HP: 100 / 100\nARMOR: NONE" and target_mesh.visible, "debug timer resets target after about 3 seconds")
 	check(markers(level).is_empty(), "existing HitMarkers expire after 3 seconds")
 
 	for world_target in ["Target_01", "Target_02", "Target_03", "Wall_North", "Wall_East", "Floor"]:

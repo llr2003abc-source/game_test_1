@@ -19,14 +19,14 @@ func _run() -> void:
 		return
 
 	var ammo: Variant = load("res://data/ammo/test_round.tres")
-	check(ammo.ammo_name == "Test Round" and is_equal_approx(ammo.damage, 30.0), "Test Round supplies 30 damage")
-	check(is_equal_approx(ammo.muzzle_velocity, 800.0) and is_equal_approx(ammo.penetration, 20.0), "reserved ammo values are stored")
+	check(ammo.ammo_name == "Test Round" and is_equal_approx(ammo.flesh_damage, 30.0), "Test Round supplies 30 damage")
+	check(is_equal_approx(ammo.muzzle_velocity, 800.0) and is_equal_approx(ammo.gravity_scale, 1.0), "ballistic ammo values are stored")
 	var weapon: Variant = load("res://data/weapons/test_rifle.tres")
 	check(weapon.magazine_data.default_ammo == ammo and is_equal_approx(weapon.max_range, 1000.0), "rifle references magazine default ammo and max_range")
 
 	var health: Variant = load("res://scripts/combat/health_component.gd").new()
 	var info: Variant = load("res://scripts/combat/damage_info.gd").new()
-	info.damage = ammo.damage
+	info.base_flesh_damage = ammo.flesh_damage
 	info.ammo_data = ammo
 	var counts: Dictionary = {"changed": 0, "damaged": 0, "died": 0, "last_amount": 0.0, "last_info": null}
 	health.health_changed.connect(func(_hp: float, _max_hp: float) -> void: counts.changed += 1)
@@ -62,7 +62,7 @@ func _run() -> void:
 		hurtbox.damage_multiplier = zone.multiplier
 		hurtbox.receive_hit(info)
 		check(is_equal_approx(health.current_health, 100.0 - zone.damage) and is_equal_approx(counts.last_amount, zone.damage), "%s multiplier yields %.0f damage" % [zone.name, zone.damage])
-		check(info.hit_zone == zone.name and info.damage == 30.0, "Hurtbox sets hit zone and preserves base ammo damage")
+		check(info.hit_zone == zone.name and info.base_flesh_damage == 30.0, "Hurtbox sets hit zone and preserves base ammo damage")
 		hurtbox.free()
 
 	health.max_health = 150.0

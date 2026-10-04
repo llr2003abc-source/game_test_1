@@ -45,9 +45,9 @@ func _run() -> void:
 	var ammo_a: Variant = load("res://scripts/weapons/ammo_data.gd").new()
 	var ammo_b: Variant = load("res://scripts/weapons/ammo_data.gd").new()
 	ammo_a.ammo_name = "Ammo A"
-	ammo_a.damage = 30.0
+	ammo_a.flesh_damage = 30.0
 	ammo_b.ammo_name = "Ammo B"
-	ammo_b.damage = 50.0
+	ammo_b.flesh_damage = 50.0
 	magazine.push_round(ammo_a)
 	magazine.push_round(ammo_b)
 	magazine.push_round(ammo_a)

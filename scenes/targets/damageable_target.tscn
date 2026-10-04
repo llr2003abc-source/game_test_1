@@ -3,6 +3,8 @@
 [ext_resource type="Script" uid="uid://cetj0pm0wqo43" path="res://scripts/targets/damageable_target.gd" id="1_target"]
 [ext_resource type="Script" uid="uid://c2um6fxcdlpeu" path="res://scripts/combat/health_component.gd" id="2_health"]
 [ext_resource type="Script" uid="uid://u4vfn3dv4uy2" path="res://scripts/combat/hurtbox.gd" id="3_hurtbox"]
+[ext_resource type="Script" uid="uid://c330q4qdolkt8" path="res://scripts/combat/armor_component.gd" id="4_armor"]
+[ext_resource type="Resource" path="res://data/armor/test_level_3_armor.tres" id="5_armor_data"]
 
 [sub_resource type="StandardMaterial3D" id="HeadMaterial"]
 albedo_color = Color(0.95, 0.8, 0.2, 1)
@@ -69,9 +71,13 @@ shape = SubResource("BodyShape")
 [node name="HealthComponent" type="Node" parent="." unique_id=801909150]
 script = ExtResource("2_health")
 
+[node name="ArmorComponent" type="Node" parent="." unique_id=767643677]
+script = ExtResource("4_armor")
+armor_data = ExtResource("5_armor_data")
+
 [node name="Hurtboxes" type="Node3D" parent="." unique_id=1752549361]
 
-[node name="Head" type="Area3D" parent="Hurtboxes" unique_id=932082420 node_paths=PackedStringArray("health_component")]
+[node name="Head" type="Area3D" parent="Hurtboxes" unique_id=932082420 node_paths=PackedStringArray("health_component", "armor_component")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.975, 0)
 collision_layer = 4
 collision_mask = 0
@@ -80,22 +86,24 @@ script = ExtResource("3_hurtbox")
 damage_multiplier = 2.0
 hit_zone = &"head"
 health_component = NodePath("../../HealthComponent")
+armor_component = NodePath("../../ArmorComponent")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Hurtboxes/Head" unique_id=1062298025]
 shape = SubResource("HeadShape")
 
-[node name="Torso" type="Area3D" parent="Hurtboxes" unique_id=1119773543 node_paths=PackedStringArray("health_component")]
+[node name="Torso" type="Area3D" parent="Hurtboxes" unique_id=1119773543 node_paths=PackedStringArray("health_component", "armor_component")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25, 0)
 collision_layer = 4
 collision_mask = 0
 monitoring = false
 script = ExtResource("3_hurtbox")
 health_component = NodePath("../../HealthComponent")
+armor_component = NodePath("../../ArmorComponent")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Hurtboxes/Torso" unique_id=72740907]
 shape = SubResource("TorsoShape")
 
-[node name="Legs" type="Area3D" parent="Hurtboxes" unique_id=525374692 node_paths=PackedStringArray("health_component")]
+[node name="Legs" type="Area3D" parent="Hurtboxes" unique_id=525374692 node_paths=PackedStringArray("health_component", "armor_component")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0)
 collision_layer = 4
 collision_mask = 0
@@ -104,6 +112,7 @@ script = ExtResource("3_hurtbox")
 damage_multiplier = 0.6
 hit_zone = &"legs"
 health_component = NodePath("../../HealthComponent")
+armor_component = NodePath("../../ArmorComponent")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Hurtboxes/Legs" unique_id=706269390]
 shape = SubResource("LegsShape")
@@ -113,7 +122,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.6, 0)
 pixel_size = 0.003
 billboard = 1
 modulate = Color(0.7, 1, 0.7, 1)
-text = "100 / 100"
+text = "HP: 100 / 100
+ARMOR: L3 100 / 100"
 font_size = 48
 
 [node name="ResetTimer" type="Timer" parent="." unique_id=1579723172]

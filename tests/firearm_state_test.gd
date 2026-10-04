@@ -42,6 +42,8 @@ func _run() -> void:
 	var firearm: Variant = player.get_node("Head/Camera3D/WeaponRoot")
 	var camera: Camera3D = player.get_node("Head/Camera3D")
 	var target: Variant = level.get_node("DamageableTarget")
+	# Preserve Phase 5 unarmored damage fixtures; armor is tested separately.
+	target.get_node("ArmorComponent").unequip_armor()
 	var health: Variant = target.get_node("HealthComponent")
 	var hud: Label = level.get_node("CanvasLayer/AmmoLabel")
 	player.set_physics_process(false)
@@ -148,9 +150,9 @@ func _run() -> void:
 	var ammo_a: Variant = load("res://scripts/weapons/ammo_data.gd").new()
 	var ammo_b: Variant = load("res://scripts/weapons/ammo_data.gd").new()
 	ammo_a.ammo_name = "Ammo A"
-	ammo_a.damage = 30.0
+	ammo_a.flesh_damage = 30.0
 	ammo_b.ammo_name = "Ammo B"
-	ammo_b.damage = 50.0
+	ammo_b.flesh_damage = 50.0
 	var mixed: Variant = load("res://scripts/weapons/magazine_instance.gd").new()
 	mixed.initialize_full(firearm.weapon_data.magazine_data)
 	mixed.clear()
@@ -167,7 +169,7 @@ func _run() -> void:
 		if projectile_mode:
 			await frames(3)
 		var info: Variant = events.info
-		check(fired_round == shot.ammo and info != null and info.ammo_data == fired_round and info.damage == fired_round.damage, "DamageInfo uses the actual fired " + shot.ammo.ammo_name)
+		check(fired_round == shot.ammo and info != null and info.ammo_data == fired_round and info.base_flesh_damage == fired_round.flesh_damage, "DamageInfo uses the actual fired " + shot.ammo.ammo_name)
 		check(is_equal_approx(health.current_health, shot.hp), "mixed-ammo torso HP -> %.0f" % shot.hp)
 		check(firearm.chambered_round == shot.next, "cycle chambers the next actual round in order")
 	check(health.is_dead() and firearm.state == 2 and mixed.is_empty(), "mixed-ammo damage reaches existing Death and weapon EMPTY")

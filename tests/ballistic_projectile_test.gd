@@ -79,8 +79,8 @@ func _run() -> void:
 	projectile_scene = load("res://scenes/weapons/ballistic_projectile.tscn")
 	var ammo: Variant = load("res://data/ammo/test_round.tres")
 	var slow: Variant = load("res://data/ammo/test_slow_round.tres")
-	check(ammo.muzzle_velocity == 800.0 and ammo.damage == 30.0 and ammo.gravity_scale == 1.0, "normal round remains 800 m/s, damage 30, gravity scale 1")
-	check(slow.muzzle_velocity == 100.0 and slow.damage == 30.0 and slow.gravity_scale == 1.0, "slow test round is 100 m/s without changing normal round")
+	check(ammo.muzzle_velocity == 800.0 and ammo.flesh_damage == 30.0 and ammo.gravity_scale == 1.0, "normal round remains 800 m/s, damage 30, gravity scale 1")
+	check(slow.muzzle_velocity == 100.0 and slow.flesh_damage == 30.0 and slow.gravity_scale == 1.0, "slow test round is 100 m/s without changing normal round")
 	var level: Node3D = load("res://scenes/levels/test_level.tscn").instantiate()
 	root.add_child(level)
 	current_scene = level
@@ -187,6 +187,8 @@ func _run() -> void:
 	print("PROJECT_GRAVITY ", gravity)
 
 	var target: Variant = level.get_node("DamageableTarget")
+	# Preserve Phase 5 unarmored damage fixtures; armor is tested separately.
+	target.get_node("ArmorComponent").unequip_armor()
 	var health: Variant = target.get_node("HealthComponent")
 	var events: Dictionary = {"info": null}
 	health.damaged.connect(func(_amount: float, info: RefCounted) -> void: events.info = info)
@@ -261,7 +263,7 @@ func _run() -> void:
 	ammo_a.ammo_name = "Ammo A"
 	ammo_b.ammo_name = "Ammo B"
 	ammo_b.muzzle_velocity = 400.0
-	ammo_b.damage = 50.0
+	ammo_b.flesh_damage = 50.0
 	var mixed: Variant = firearm.loaded_magazine
 	mixed.clear()
 	mixed.push_round(ammo_a)
@@ -276,9 +278,9 @@ func _run() -> void:
 		projectile = fire(firearm, level)
 		check(projectile.ammo_data == shot.ammo and is_equal_approx(projectile.velocity.length(), shot.ammo.muzzle_velocity), "mixed projectile carries actual round and %.0f m/s velocity" % shot.ammo.muzzle_velocity)
 		simulate(projectile, 1.0 / 60.0)
-		check(events.info.ammo_data == shot.ammo and events.info.damage == shot.ammo.damage and is_equal_approx(health.current_health, shot.hp), "mixed projectile applies actual %.0f damage, HP %.0f" % [shot.ammo.damage, shot.hp])
+		check(events.info.ammo_data == shot.ammo and events.info.base_flesh_damage == shot.ammo.flesh_damage and is_equal_approx(health.current_health, shot.hp), "mixed projectile applies actual %.0f damage, HP %.0f" % [shot.ammo.flesh_damage, shot.hp])
 		await frames(1)
-	check(health.is_dead() and target.get_node("DebugHealthLabel").text == "DEAD", "projectile death uses existing target visuals")
+	check(health.is_dead() and target.get_node("DebugHealthLabel").text.begins_with("DEAD"), "projectile death uses existing target visuals")
 	await create_timer(3.2).timeout
 	check(health.current_health == 100.0 and target.get_node("Mesh").visible, "projectile death uses existing three-second reset")
 

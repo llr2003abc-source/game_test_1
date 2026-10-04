@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="AmmoData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/ammo_data.gd" id="1_ammo"]
+
+[resource]
+script = ExtResource("1_ammo")
+ammo_name = "Test Level 5 Round"
+bullet_level = 5
+flesh_damage = 40.0
+armor_damage = 30.0
+muzzle_velocity = 800.0
+gravity_scale = 1.0
+max_flight_time = 5.0

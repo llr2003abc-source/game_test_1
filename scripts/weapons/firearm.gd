@@ -195,7 +195,8 @@ func process_impact(collider: Node3D, hit_position: Vector3, hit_normal: Vector3
 	print("Hit %s at %s" % [collider.name, hit_position])
 	if collider.has_method("receive_hit"):
 		var damage_info := DamageInfo.new()
-		damage_info.damage = fired_round.damage
+		damage_info.base_flesh_damage = fired_round.flesh_damage
+		damage_info.bullet_level = fired_round.bullet_level
 		damage_info.hit_position = hit_position
 		damage_info.hit_normal = hit_normal
 		damage_info.hit_direction = shot_direction
