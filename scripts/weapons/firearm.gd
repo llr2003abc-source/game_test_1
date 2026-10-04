@@ -14,6 +14,7 @@ const MUZZLE_FLASH_DURATION: float = 0.05
 const HITSCAN_COLLISION_MASK: int = 1 | 4
 
 @export var weapon_data: WeaponData
+@export var injury_component: BodyInjuryComponent
 var fire_mode: WeaponData.FireMode = WeaponData.FireMode.AUTO
 var state: State = State.EMPTY
 var chambered_round: AmmoData = null
@@ -82,7 +83,7 @@ func request_reload() -> void:
 	if _reload_magazine == null:
 		return
 	state = State.RELOADING
-	_reload_remaining = weapon_data.reload_time
+	_reload_remaining = weapon_data.reload_time * (injury_component.get_reload_multiplier() if injury_component != null else 1.0)
 	_trigger_pressed = false
 	publish_weapon_state()
 	print("Reloading...")
@@ -135,6 +136,8 @@ func _complete_reload() -> void:
 
 func _get_shot_direction() -> Vector3:
 	var spread: float = weapon_data.ads_spread_degrees if is_aiming else weapon_data.hip_spread_degrees
+	if injury_component != null:
+		spread *= injury_component.get_spread_multiplier()
 	var pitch: float = deg_to_rad(_random.randf_range(-spread, spread))
 	var yaw: float = deg_to_rad(_random.randf_range(-spread, spread))
 	var local_direction: Vector3 = Vector3.FORWARD.rotated(Vector3.RIGHT, pitch).rotated(Vector3.UP, yaw)
@@ -168,9 +171,10 @@ func _fire_shot() -> void:
 
 	_flash_remaining = MUZZLE_FLASH_DURATION
 	muzzle_flash.visible = true
+	var recoil_multiplier: float = injury_component.get_recoil_multiplier() if injury_component != null else 1.0
 	shot_fired.emit(
-		deg_to_rad(weapon_data.recoil_pitch),
-		deg_to_rad(_random.randf_range(-weapon_data.recoil_yaw, weapon_data.recoil_yaw))
+		deg_to_rad(weapon_data.recoil_pitch) * recoil_multiplier,
+		deg_to_rad(_random.randf_range(-weapon_data.recoil_yaw, weapon_data.recoil_yaw)) * recoil_multiplier
 	)
 	chamber_next_round()
 	print("MAG %d | CHAMBER %d | SPARE MAGS %d" % [

@@ -42,6 +42,9 @@ func _run() -> void:
 	var firearm: Variant = player.get_node("Head/Camera3D/WeaponRoot")
 	var camera: Camera3D = player.get_node("Head/Camera3D")
 	var target: Variant = level.get_node("DamageableTarget")
+	# Phase 6 regression fixture keeps Overall 100; new body tests use 150.
+	target.get_node("HealthComponent").max_health = 100.0
+	target.reset_target()
 	# Preserve Phase 5 unarmored damage fixtures; armor is tested separately.
 	target.get_node("ArmorComponent").unequip_armor()
 	var health: Variant = target.get_node("HealthComponent")

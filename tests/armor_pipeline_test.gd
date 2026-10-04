@@ -52,6 +52,9 @@ func _run() -> void:
 	root.add_child(level)
 	current_scene = level
 	var target: Variant = level.get_node("DamageableTarget")
+	# Phase 6 regression fixture keeps Overall 100; new body tests use 150.
+	target.get_node("HealthComponent").max_health = 100.0
+	target.reset_target()
 	check(target.has_node("ArmorComponent"), "saved target contains equipped ArmorComponent")
 	if failures > 0:
 		level.queue_free()
@@ -73,7 +76,7 @@ func _run() -> void:
 	firearm.weapon_data.recoil_yaw = 0.0
 	firearm.fire_mode = 0
 	await frames(3)
-	check(armor.equipped_armor.definition.armor_level == 3 and armor.equipped_armor.current_durability == 100.0 and label.text == "HP: 100 / 100\nARMOR: L3 100 / 100", "default target shows full HP and torso L3 armor")
+	check(armor.equipped_armor.definition.armor_level == 3 and armor.equipped_armor.current_durability == 100.0 and (label.text.begins_with("HP: 100 / 100\n") and label.text.ends_with("\nARMOR: L3 100 / 100")), "default target shows full HP and torso L3 armor")
 	for zone_node in ["Head", "Torso", "Legs"]:
 		check(target.get_node("Hurtboxes/" + zone_node).armor_component == armor, zone_node + " saved scene references its real ArmorComponent")
 	if failures > 0:
@@ -129,7 +132,7 @@ func _run() -> void:
 			check(marker_count(level) == before_markers + 1, "zero and nonzero flesh hits preserve existing HitMarker")
 			snapshot.append([health.current_health, armor.equipped_armor.current_durability])
 		mode_snapshots.append(snapshot)
-		check(firearm.chambered_round == null and magazine.is_empty() and firearm.state == 2 and label.text == "HP: 60 / 100\nARMOR: L3 BROKEN", "mixed fire cycle ends EMPTY and broken armor label")
+		check(firearm.chambered_round == null and magazine.is_empty() and firearm.state == 2 and (label.text.begins_with("HP: 60 / 100\n") and label.text.ends_with("\nARMOR: L3 BROKEN")), "mixed fire cycle ends EMPTY and broken armor label")
 		firearm.chambered_round = load("res://data/ammo/test_level_1_round.tres")
 		firearm.state = 0
 		await shoot(firearm, camera, torso.global_position)
@@ -145,14 +148,14 @@ func _run() -> void:
 		firearm.state = 0
 		await shoot(firearm, camera, torso.global_position)
 		check(health.current_health == 70.0 and armor.equipped_armor.current_durability == 85.0 and torso.last_info.ammo_data == varied, "both modes use distinct fired-round flesh 60 and armor 10")
-		check(label.text == "HP: 70 / 100\nARMOR: L3 85 / 100", "label updates both flesh damage and durability")
+		check((label.text.begins_with("HP: 70 / 100\n") and label.text.ends_with("\nARMOR: L3 85 / 100")), "label updates both flesh damage and durability")
 
 		target.reset_target()
 		armor.equipped_armor.current_durability = 5.0
 		firearm.chambered_round = load("res://data/ammo/test_level_1_round.tres")
 		firearm.state = 0
 		await shoot(firearm, camera, torso.global_position)
-		check(health.current_health == 100.0 and torso.last_info.armor_hit_result.armor_broken_after and not torso.last_info.armor_hit_result.armor_broken_before and torso.last_info.final_flesh_damage == 0.0 and label.text == "HP: 100 / 100\nARMOR: L3 BROKEN", "real low-level breaking shot still blocks flesh and updates label")
+		check(health.current_health == 100.0 and torso.last_info.armor_hit_result.armor_broken_after and not torso.last_info.armor_hit_result.armor_broken_before and torso.last_info.final_flesh_damage == 0.0 and (label.text.begins_with("HP: 100 / 100\n") and label.text.ends_with("\nARMOR: L3 BROKEN")), "real low-level breaking shot still blocks flesh and updates label")
 		firearm.chambered_round = load("res://data/ammo/test_level_1_round.tres")
 		firearm.state = 0
 		await shoot(firearm, camera, torso.global_position)
@@ -172,7 +175,7 @@ func _run() -> void:
 		direct_hit(torso, ammo)
 		check(armor.equipped_armor.current_durability == durability_at_death, "dead target ignores further armor damage")
 		await create_timer(3.2).timeout
-		check(health.current_health == 100.0 and armor.equipped_armor.current_durability == 100.0 and target.get_node("Mesh").visible and label.text == "HP: 100 / 100\nARMOR: L3 100 / 100", "debug death reset restores health and armor together")
+		check(health.current_health == 100.0 and armor.equipped_armor.current_durability == 100.0 and target.get_node("Mesh").visible and (label.text.begins_with("HP: 100 / 100\n") and label.text.ends_with("\nARMOR: L3 100 / 100")), "debug death reset restores health and armor together")
 	check(mode_snapshots[0] == mode_snapshots[1], "HITSCAN and PROJECTILE produce identical mixed-ammo armor outcomes")
 	level.queue_free()
 	await process_frame

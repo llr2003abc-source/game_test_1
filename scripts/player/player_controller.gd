@@ -1,6 +1,7 @@
 extends CharacterBody3D
 
 @export var mouse_sensitivity: float = 0.0025
+@export var injury_component: BodyInjuryComponent
 
 var normal_speed: float = 5.0
 var aim_speed: float = 3.0
@@ -43,12 +44,14 @@ func _physics_process(delta: float) -> void:
 	var controls_active: bool = Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	var aiming: bool = controls_active and Input.is_action_pressed("aim")
 	var speed: float = aim_speed if aiming else normal_speed
+	if injury_component != null:
+		speed *= injury_component.get_movement_multiplier()
 	camera.fov = lerpf(camera.fov, 55.0 if aiming else 75.0, 1.0 - exp(-12.0 * delta))
 
 	if not is_on_floor():
 		velocity.y -= gravity * delta
 	if controls_active and Input.is_action_just_pressed("jump") and is_on_floor():
-		velocity.y = jump_velocity
+		velocity.y = jump_velocity * (injury_component.get_jump_multiplier() if injury_component != null else 1.0)
 
 	var input_direction: Vector2 = Vector2.ZERO
 	if controls_active:

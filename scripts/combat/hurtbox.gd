@@ -5,6 +5,7 @@ extends Area3D
 @export var hit_zone: StringName = &"torso"
 @export var health_component: HealthComponent
 @export var armor_component: ArmorComponent
+@export var body_health_component: BodyHealthComponent
 
 func receive_hit(damage_info: DamageInfo) -> void:
 	if health_component.is_dead():
@@ -15,4 +16,7 @@ func receive_hit(damage_info: DamageInfo) -> void:
 		damage_info.armor_hit_result = armor_component.resolve_hit(damage_info.ammo_data, hit_zone)
 		flesh_damage = damage_info.armor_hit_result.final_flesh_damage
 	damage_info.final_flesh_damage = flesh_damage * damage_multiplier
-	health_component.apply_damage(damage_info.final_flesh_damage, damage_info)
+	if body_health_component != null:
+		body_health_component.apply_zone_damage(hit_zone, damage_info.final_flesh_damage, damage_info)
+	else:
+		health_component.apply_damage(damage_info.final_flesh_damage, damage_info)
