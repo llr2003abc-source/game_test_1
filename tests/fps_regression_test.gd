@@ -62,6 +62,8 @@ func _run() -> void:
 	player.set_physics_process(false)
 	firearm.set_physics_process(false)
 	firearm.weapon_data = firearm.weapon_data.duplicate()
+	var projectile_mode: bool = OS.get_cmdline_user_args().has("--projectile")
+	firearm.weapon_data.fire_model = WeaponData.FireModel.PROJECTILE if projectile_mode else WeaponData.FireModel.HITSCAN
 	var data: Variant = firearm.weapon_data
 	data.hip_spread_degrees = 0.0
 	data.ads_spread_degrees = 0.0
@@ -170,6 +172,8 @@ func _run() -> void:
 	player._pending_recoil = Vector2.ZERO
 	player.rotation = Vector3.ZERO
 	head.rotation = Vector3.ZERO
+	if projectile_mode:
+		await create_timer(5.1).timeout
 	for marker in markers(level):
 		marker.queue_free()
 	await frames(2)
@@ -180,6 +184,8 @@ func _run() -> void:
 		before = markers(level).size()
 		firearm.set_trigger(true, true)
 		firearm._physics_process(0.01)
+		if projectile_mode:
+			await frames(3)
 		check(markers(level).size() == before + 1, "existing HitMarker generated on " + target_name + " (self excluded)")
 	camera.rotation = Vector3(PI / 2.0, 0, 0)
 	firearm.set_trigger(false, false)
@@ -259,7 +265,7 @@ func _run() -> void:
 	check(firearm.state == Firearm.State.RELOADING, "R reload request reaches Firearm")
 	await create_timer(2.2).timeout
 	check(firearm.state == Firearm.State.READY and round_count(firearm) == 31 and label.text == "MAG 30 | CHAMBER 1\nSPARE MAGS: 2", "real-time tactical reload completes and restores HUD")
-	print("FPS_REGRESSION_RESULT failures=" + str(failures))
+	print("FPS_REGRESSION_RESULT mode=%s failures=%d" % ["PROJECTILE" if projectile_mode else "HITSCAN", failures])
 	level.queue_free()
 	await process_frame
 	quit(1 if failures > 0 else 0)

@@ -8,3 +8,5 @@ ammo_name = "Test Round"
 damage = 30.0
 muzzle_velocity = 800.0
 penetration = 20.0
+gravity_scale = 1.0
+max_flight_time = 5.0

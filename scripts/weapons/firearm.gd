@@ -8,6 +8,7 @@ enum State { READY, RELOADING, EMPTY }
 const FireMode = WeaponData.FireMode
 
 const HIT_MARKER_SCENE: PackedScene = preload("res://scenes/weapons/hit_marker.tscn")
+const PROJECTILE_SCENE: PackedScene = preload("res://scenes/weapons/ballistic_projectile.tscn")
 const MUZZLE_FLASH_DURATION: float = 0.05
 # Physics layers 1 (World) and 3 (Hurtbox); TargetBody only blocks movement.
 const HITSCAN_COLLISION_MASK: int = 1 | 4
@@ -30,6 +31,7 @@ var _random := RandomNumberGenerator.new()
 @onready var camera: Camera3D = get_parent()
 @onready var player: CharacterBody3D = get_node("../../..")
 @onready var muzzle_flash: OmniLight3D = $Muzzle/MuzzleFlash
+@onready var muzzle: Marker3D = $Muzzle
 
 func _ready() -> void:
 	# Run after PlayerController has supplied this physics tick's inputs.
@@ -138,37 +140,31 @@ func _get_shot_direction() -> Vector3:
 	var local_direction: Vector3 = Vector3.FORWARD.rotated(Vector3.RIGHT, pitch).rotated(Vector3.UP, yaw)
 	return (camera.global_transform.basis * local_direction).normalized()
 
+func get_camera_aim_point(direction: Vector3 = Vector3.ZERO) -> Vector3:
+	if direction == Vector3.ZERO:
+		direction = camera.global_basis * Vector3.FORWARD
+	var origin: Vector3 = camera.global_position
+	var endpoint: Vector3 = origin + direction.normalized() * weapon_data.max_range
+	var query := PhysicsRayQueryParameters3D.create(origin, endpoint, HITSCAN_COLLISION_MASK, [player.get_rid()])
+	query.collide_with_areas = true
+	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
+	return endpoint if hit.is_empty() else hit["position"]
+
 func _fire_shot() -> void:
 	if state != State.READY or chambered_round == null:
 		return
 	var fired_round: AmmoData = chambered_round
 	chambered_round = null
 
-	var origin: Vector3 = camera.global_position
 	var direction: Vector3 = _get_shot_direction()
-	var query := PhysicsRayQueryParameters3D.create(
-		origin, origin + direction * weapon_data.max_range, HITSCAN_COLLISION_MASK, [player.get_rid()]
-	)
-	query.collide_with_areas = true
-	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
-	if not hit.is_empty():
-		var hit_position: Vector3 = hit["position"]
-		var hit_normal: Vector3 = hit["normal"]
-		var collider: Node3D = hit["collider"]
-		var marker: MeshInstance3D = HIT_MARKER_SCENE.instantiate()
-		get_tree().current_scene.add_child(marker)
-		marker.global_position = hit_position + hit_normal * 0.01
-		print("Hit %s at %s" % [collider.name, hit_position])
-		if collider.has_method("receive_hit"):
-			var damage_info := DamageInfo.new()
-			damage_info.damage = fired_round.damage
-			damage_info.hit_position = hit_position
-			damage_info.hit_normal = hit_normal
-			damage_info.hit_direction = direction
-			damage_info.source = player
-			damage_info.weapon = self
-			damage_info.ammo_data = fired_round
-			collider.receive_hit(damage_info)
+	if weapon_data.fire_model == WeaponData.FireModel.PROJECTILE:
+		var aim_point: Vector3 = get_camera_aim_point(direction)
+		var projectile: BallisticProjectile = PROJECTILE_SCENE.instantiate()
+		get_tree().current_scene.add_child(projectile)
+		projectile.impacted.connect(process_impact)
+		projectile.initialize(muzzle.global_position, aim_point - muzzle.global_position, fired_round, player, self, camera)
+	else:
+		_fire_hitscan(direction, fired_round)
 
 	_flash_remaining = MUZZLE_FLASH_DURATION
 	muzzle_flash.visible = true
@@ -181,6 +177,32 @@ func _fire_shot() -> void:
 		loaded_magazine.get_round_count() if loaded_magazine != null else 0,
 		1 if chambered_round != null else 0, spare_magazines.size()
 	])
+
+func _fire_hitscan(direction: Vector3, fired_round: AmmoData) -> void:
+	var origin: Vector3 = camera.global_position
+	var query := PhysicsRayQueryParameters3D.create(
+		origin, origin + direction * weapon_data.max_range, HITSCAN_COLLISION_MASK, [player.get_rid()]
+	)
+	query.collide_with_areas = true
+	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
+	if not hit.is_empty():
+		process_impact(hit["collider"], hit["position"], hit["normal"], direction, fired_round)
+
+func process_impact(collider: Node3D, hit_position: Vector3, hit_normal: Vector3, shot_direction: Vector3, fired_round: AmmoData) -> void:
+	var marker: MeshInstance3D = HIT_MARKER_SCENE.instantiate()
+	get_tree().current_scene.add_child(marker)
+	marker.global_position = hit_position + hit_normal * 0.01
+	print("Hit %s at %s" % [collider.name, hit_position])
+	if collider.has_method("receive_hit"):
+		var damage_info := DamageInfo.new()
+		damage_info.damage = fired_round.damage
+		damage_info.hit_position = hit_position
+		damage_info.hit_normal = hit_normal
+		damage_info.hit_direction = shot_direction
+		damage_info.source = player
+		damage_info.weapon = self
+		damage_info.ammo_data = fired_round
+		collider.receive_hit(damage_info)
 
 func publish_weapon_state() -> void:
 	weapon_state_changed.emit(

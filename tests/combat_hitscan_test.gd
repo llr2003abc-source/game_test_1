@@ -50,6 +50,7 @@ func _run() -> void:
 	firearm.set_physics_process(false)
 	# Isolate aim and recoil randomness in the test instance, never in saved resources.
 	firearm.weapon_data = firearm.weapon_data.duplicate()
+	firearm.weapon_data.fire_model = WeaponData.FireModel.HITSCAN
 	firearm.weapon_data.hip_spread_degrees = 0.0
 	firearm.weapon_data.ads_spread_degrees = 0.0
 	firearm.weapon_data.recoil_pitch = 0.0
@@ -102,9 +103,11 @@ func _run() -> void:
 	check(markers(level).is_empty(), "existing HitMarkers expire after 3 seconds")
 
 	for world_target in ["Target_01", "Target_02", "Target_03", "Wall_North", "Wall_East", "Floor"]:
+		var saved_player_position: Vector3 = player.position
 		var aim_point: Vector3 = level.get_node(world_target).global_position
 		if world_target == "Wall_North":
-			aim_point.x = 8.0
+			player.position.x = 14.0
+			aim_point.x = 14.0
 		if world_target == "Wall_East":
 			aim_point.z = 6.0
 		if world_target == "Floor":
@@ -113,6 +116,7 @@ func _run() -> void:
 		var before_markers: int = markers(level).size()
 		shoot(firearm, camera, aim_point)
 		check(markers(level).size() == before_markers + 1 and events.hits == before_hits and health.current_health == 100.0, world_target + " produces marker without damage")
+		player.position = saved_player_position
 
 	var saved_transform: Transform3D = camera.global_transform
 	camera.global_position = Vector3(-3, 1.25, 17)

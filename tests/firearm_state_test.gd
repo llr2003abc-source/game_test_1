@@ -47,6 +47,8 @@ func _run() -> void:
 	player.set_physics_process(false)
 	firearm.set_physics_process(false)
 	firearm.weapon_data = firearm.weapon_data.duplicate()
+	var projectile_mode: bool = OS.get_cmdline_user_args().has("--projectile")
+	firearm.weapon_data.fire_model = WeaponData.FireModel.PROJECTILE if projectile_mode else WeaponData.FireModel.HITSCAN
 	firearm.weapon_data.hip_spread_degrees = 0.0
 	firearm.weapon_data.ads_spread_degrees = 0.0
 	firearm.weapon_data.recoil_pitch = 0.0
@@ -162,6 +164,8 @@ func _run() -> void:
 	for shot in [{"ammo": ammo_a, "hp": 70.0, "next": ammo_b}, {"ammo": ammo_b, "hp": 20.0, "next": ammo_a}, {"ammo": ammo_a, "hp": 0.0, "next": null}]:
 		var fired_round: Variant = firearm.chambered_round
 		shoot(firearm)
+		if projectile_mode:
+			await frames(3)
 		var info: Variant = events.info
 		check(fired_round == shot.ammo and info != null and info.ammo_data == fired_round and info.damage == fired_round.damage, "DamageInfo uses the actual fired " + shot.ammo.ammo_name)
 		check(is_equal_approx(health.current_health, shot.hp), "mixed-ammo torso HP -> %.0f" % shot.hp)
@@ -169,5 +173,5 @@ func _run() -> void:
 	check(health.is_dead() and firearm.state == 2 and mixed.is_empty(), "mixed-ammo damage reaches existing Death and weapon EMPTY")
 	level.queue_free()
 	await process_frame
-	print("FIREARM_STATE_RESULT failures=%d" % failures)
+	print("FIREARM_STATE_RESULT mode=%s failures=%d" % ["PROJECTILE" if projectile_mode else "HITSCAN", failures])
 	quit(1 if failures > 0 else 0)

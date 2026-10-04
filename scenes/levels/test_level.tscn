@@ -17,10 +17,10 @@ roughness = 0.9
 
 [sub_resource type="BoxMesh" id="FloorMesh"]
 material = SubResource("FloorMaterial")
-size = Vector3(30, 0.5, 30)
+size = Vector3(30, 0.5, 140)
 
 [sub_resource type="BoxShape3D" id="FloorShape"]
-size = Vector3(30, 0.5, 30)
+size = Vector3(30, 0.5, 140)
 
 [sub_resource type="StandardMaterial3D" id="WallMaterial"]
 albedo_color = Color(0.32, 0.38, 0.45, 1)
@@ -42,17 +42,17 @@ size = Vector3(30, 4, 0.5)
 
 [sub_resource type="BoxMesh" id="Wall_EastMesh"]
 material = SubResource("WallMaterial")
-size = Vector3(0.5, 4, 30)
+size = Vector3(0.5, 4, 140)
 
 [sub_resource type="BoxShape3D" id="Wall_EastShape"]
-size = Vector3(0.5, 4, 30)
+size = Vector3(0.5, 4, 140)
 
 [sub_resource type="BoxMesh" id="Wall_WestMesh"]
 material = SubResource("WallMaterial")
-size = Vector3(0.5, 4, 30)
+size = Vector3(0.5, 4, 140)
 
 [sub_resource type="BoxShape3D" id="Wall_WestShape"]
-size = Vector3(0.5, 4, 30)
+size = Vector3(0.5, 4, 140)
 
 [sub_resource type="StandardMaterial3D" id="BoxMaterial"]
 albedo_color = Color(0.9, 0.24, 0.12, 1)
@@ -91,6 +91,37 @@ height = 2.0
 [sub_resource type="SphereShape3D" id="Target_03Shape"]
 radius = 1.0
 
+[sub_resource type="StandardMaterial3D" id="DistanceMaterial"]
+albedo_color = Color(0.2, 0.7, 0.4, 1)
+
+[sub_resource type="BoxMesh" id="Target10Mesh"]
+material = SubResource("DistanceMaterial")
+size = Vector3(1.5, 4, 0.2)
+
+[sub_resource type="BoxShape3D" id="Target10Shape"]
+size = Vector3(1.5, 4, 0.2)
+
+[sub_resource type="BoxMesh" id="Target50Mesh"]
+material = SubResource("DistanceMaterial")
+size = Vector3(3, 12, 0.2)
+
+[sub_resource type="BoxShape3D" id="Target50Shape"]
+size = Vector3(3, 12, 0.2)
+
+[sub_resource type="BoxMesh" id="Target100Mesh"]
+material = SubResource("DistanceMaterial")
+size = Vector3(4, 16, 0.2)
+
+[sub_resource type="BoxShape3D" id="Target100Shape"]
+size = Vector3(4, 16, 0.2)
+
+[sub_resource type="BoxMesh" id="ThinWallMesh"]
+material = SubResource("WallMaterial")
+size = Vector3(2, 3, 0.02)
+
+[sub_resource type="BoxShape3D" id="ThinWallShape"]
+size = Vector3(2, 3, 0.02)
+
 [node name="TestLevel" type="Node3D" unique_id=2064268926]
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=201392525]
@@ -102,7 +133,7 @@ shadow_enabled = true
 environment = SubResource("Environment_jbqir")
 
 [node name="Floor" type="StaticBody3D" parent="." unique_id=1476333786]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, -55)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Floor" unique_id=1707077497]
 mesh = SubResource("FloorMesh")
@@ -111,7 +142,7 @@ mesh = SubResource("FloorMesh")
 shape = SubResource("FloorShape")
 
 [node name="Wall_North" type="StaticBody3D" parent="." unique_id=1690544832]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, -15)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, -125)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Wall_North" unique_id=1491544487]
 mesh = SubResource("Wall_NorthMesh")
@@ -129,7 +160,7 @@ mesh = SubResource("Wall_SouthMesh")
 shape = SubResource("Wall_SouthShape")
 
 [node name="Wall_East" type="StaticBody3D" parent="." unique_id=189580683]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 2, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 2, -55)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Wall_East" unique_id=555730563]
 mesh = SubResource("Wall_EastMesh")
@@ -138,7 +169,7 @@ mesh = SubResource("Wall_EastMesh")
 shape = SubResource("Wall_EastShape")
 
 [node name="Wall_West" type="StaticBody3D" parent="." unique_id=1208652865]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 2, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15, 2, -55)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Wall_West" unique_id=71578186]
 mesh = SubResource("Wall_WestMesh")
@@ -228,3 +259,65 @@ firearm_path = NodePath("../../Player/Head/Camera3D/WeaponRoot")
 
 [node name="DamageableTarget" parent="." unique_id=646589950 instance=ExtResource("3_fr1um")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, 3)
+
+[node name="Target_10m" type="StaticBody3D" parent="." unique_id=1100534846]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 4)
+
+[node name="Mesh" type="MeshInstance3D" parent="Target_10m" unique_id=1716738942]
+mesh = SubResource("Target10Mesh")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Target_10m" unique_id=2131378252]
+shape = SubResource("Target10Shape")
+
+[node name="DistanceLabel" type="Label3D" parent="Target_10m" unique_id=1872850293]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.6, 0)
+pixel_size = 0.006
+billboard = 1
+text = "10 m"
+font_size = 48
+
+[node name="Target_50m" type="StaticBody3D" parent="." unique_id=426469322]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 6, -40)
+
+[node name="Mesh" type="MeshInstance3D" parent="Target_50m" unique_id=1075733174]
+mesh = SubResource("Target50Mesh")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Target_50m" unique_id=1296261666]
+shape = SubResource("Target50Shape")
+
+[node name="DistanceLabel" type="Label3D" parent="Target_50m" unique_id=1517809917]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.8, 0)
+pixel_size = 0.02
+billboard = 1
+text = "50 m"
+font_size = 48
+
+[node name="Target_100m" type="StaticBody3D" parent="." unique_id=1477078127]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 8, -90)
+
+[node name="Mesh" type="MeshInstance3D" parent="Target_100m" unique_id=718279700]
+mesh = SubResource("Target100Mesh")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Target_100m" unique_id=1357509823]
+shape = SubResource("Target100Shape")
+
+[node name="DistanceLabel" type="Label3D" parent="Target_100m" unique_id=370887432]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.8, 0)
+pixel_size = 0.03
+billboard = 1
+text = "100 m"
+font_size = 48
+
+[node name="ThinWall" type="StaticBody3D" parent="." unique_id=1200688690]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 1.5, 7)
+
+[node name="Mesh" type="MeshInstance3D" parent="ThinWall" unique_id=1739214885]
+mesh = SubResource("ThinWallMesh")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ThinWall" unique_id=184001816]
+shape = SubResource("ThinWallShape")
+
+[node name="DistanceLabel" type="Label3D" parent="ThinWall" unique_id=1570685090]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.1, 0)
+billboard = 1
+text = "Thin wall: 0.02 m"
