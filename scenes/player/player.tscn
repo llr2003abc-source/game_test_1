@@ -6,6 +6,7 @@
 [ext_resource type="Script" uid="uid://c2um6fxcdlpeu" path="res://scripts/combat/health_component.gd" id="4_health"]
 [ext_resource type="Script" uid="uid://ifsby4gehdcu" path="res://scripts/combat/body_health_component.gd" id="5_body"]
 [ext_resource type="Script" uid="uid://se2qby6mg6po" path="res://scripts/combat/body_injury_component.gd" id="6_injury"]
+[ext_resource type="Script" uid="uid://ckav0s6587f8u" path="res://scripts/systems/actor_noise_emitter.gd" id="7_noise"]
 
 [sub_resource type="CapsuleShape3D" id="PlayerCapsule"]
 radius = 0.3
@@ -40,6 +41,10 @@ body_health = NodePath("../BodyHealthComponent")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=602631426]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
 shape = SubResource("PlayerCapsule")
+
+[node name="ActorNoiseEmitter" type="Node" parent="." unique_id=759712305 node_paths=PackedStringArray("source")]
+script = ExtResource("7_noise")
+source = NodePath("..")
 
 [node name="Head" type="Node3D" parent="." unique_id=879799545]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)

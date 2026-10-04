@@ -10,7 +10,6 @@ signal injuries_reset()
 @export var torso_movement_multiplier: float = 0.8
 @export var arms_recoil_multiplier: float = 1.5
 @export var arms_reload_multiplier: float = 1.35
-@export var legs_movement_multiplier: float = 0.6
 @export var legs_jump_multiplier: float = 0.5
 
 var head_injured: bool = false
@@ -44,7 +43,7 @@ func is_zone_injured(zone: StringName) -> bool:
 	return false
 
 func get_movement_multiplier() -> float:
-	return (torso_movement_multiplier if torso_injured else 1.0) * (legs_movement_multiplier if legs_injured else 1.0)
+	return torso_movement_multiplier if torso_injured else 1.0
 
 func get_recoil_multiplier() -> float:
 	return (head_recoil_multiplier if head_injured else 1.0) * (arms_recoil_multiplier if arms_injured else 1.0)

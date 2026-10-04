@@ -1,6 +1,6 @@
 # Cover-first / Standoff 战斗 AI 设计草稿
 
-状态：待用户审阅；尚未实现产品代码或运行新增 AI 测试。
+状态：已按用户要求搁置，当前优先设计 Phase 8A Gameplay Acoustic / Noise System。尚未实现产品代码或运行新增 AI 测试。
 
 ## 目标与当前项目
 

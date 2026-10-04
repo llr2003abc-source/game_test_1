@@ -9,6 +9,7 @@ weapon_name = "Test Rifle"
 magazine_data = ExtResource("2_magazine")
 fire_mode = 1
 fire_model = 1
+gunshot_hearing_radius = 200.0
 rounds_per_minute = 600.0
 reload_time = 2.0
 max_range = 1000.0

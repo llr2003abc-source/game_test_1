@@ -92,13 +92,13 @@ func _run() -> void:
 			&"arms":
 				check(injury.arms_injured and injury.get_recoil_multiplier() == 1.5 and injury.get_reload_multiplier() == 1.35, "arms injury increases recoil and reload duration")
 			&"legs":
-				check(injury.legs_injured and injury.get_movement_multiplier() == 0.6 and injury.get_jump_multiplier() == 0.5, "legs injury reduces movement and jump without disabling them")
+				check(injury.legs_injured and injury.get_movement_multiplier() == 1.0 and injury.get_jump_multiplier() == 0.5, "legs injury selects a movement mode and still reduces jump")
 	health.reset_health()
 	body.reset_body_health()
 	injury.reset_injuries()
 	for zone in [&"head", &"torso", &"arms", &"legs"]:
 		body.apply_zone_damage(zone, body.get_zone_max_health(zone), info)
-	check(is_equal_approx(injury.get_movement_multiplier(), 0.48) and is_equal_approx(injury.get_recoil_multiplier(), 2.025), "movement and recoil injuries compose multiplicatively")
+	check(is_equal_approx(injury.get_movement_multiplier(), 0.8) and is_equal_approx(injury.get_recoil_multiplier(), 2.025), "torso movement and combined recoil modifiers remain independent of leg movement mode")
 	check(injury.get_spread_multiplier() == 1.5 and injury.get_reload_multiplier() == 1.35 and injury.get_jump_multiplier() == 0.5 and not health.is_dead(), "all injuries can coexist without killing a living Overall")
 	injury.head_recoil_multiplier = 2.0
 	injury.head_spread_multiplier = 3.0

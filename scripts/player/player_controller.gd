@@ -1,10 +1,16 @@
 extends CharacterBody3D
 
+const MovementMode = ActorNoiseEmitter.MovementMode
+
 @export var mouse_sensitivity: float = 0.0025
 @export var injury_component: BodyInjuryComponent
+@export var normal_speed: float = 5.0
+@export var aim_speed: float = 3.0
+@export var sneak_speed: float = 2.5
+@export var sprint_speed: float = 7.5
+@export var injured_speed: float = 2.5
 
-var normal_speed: float = 5.0
-var aim_speed: float = 3.0
+var movement_mode: ActorNoiseEmitter.MovementMode = MovementMode.WALK
 var jump_velocity: float = 5.0
 var gravity: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 var _block_fire_until_release: bool = false
@@ -13,6 +19,7 @@ var _pending_recoil: Vector2 = Vector2.ZERO
 @onready var head: Node3D = $Head
 @onready var camera: Camera3D = $Head/Camera3D
 @onready var firearm: Firearm = $Head/Camera3D/WeaponRoot
+@onready var noise_emitter: ActorNoiseEmitter = $ActorNoiseEmitter
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -43,8 +50,15 @@ func _unhandled_input(event: InputEvent) -> void:
 func _physics_process(delta: float) -> void:
 	var controls_active: bool = Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	var aiming: bool = controls_active and Input.is_action_pressed("aim")
-	var speed: float = aim_speed if aiming else normal_speed
-	if injury_component != null:
+	movement_mode = _resolve_movement_mode(controls_active, aiming)
+	var speed: float = normal_speed
+	match movement_mode:
+		MovementMode.SNEAK: speed = sneak_speed
+		MovementMode.SPRINT: speed = sprint_speed
+		MovementMode.INJURED: speed = injured_speed
+		MovementMode.ADS:
+			speed = minf(aim_speed, sneak_speed) if Input.is_action_pressed("sneak") else aim_speed
+	if injury_component != null and movement_mode != MovementMode.INJURED:
 		speed *= injury_component.get_movement_multiplier()
 	camera.fov = lerpf(camera.fov, 55.0 if aiming else 75.0, 1.0 - exp(-12.0 * delta))
 
@@ -60,6 +74,7 @@ func _physics_process(delta: float) -> void:
 	velocity.x = direction.x * speed
 	velocity.z = direction.z * speed
 	move_and_slide()
+	noise_emitter.observe_movement(global_position, velocity, is_on_floor(), movement_mode, aiming)
 	_apply_recoil(delta)
 
 	if not Input.is_action_pressed("fire"):
@@ -72,6 +87,17 @@ func _physics_process(delta: float) -> void:
 	)
 	if controls_active and Input.is_action_just_pressed("reload"):
 		firearm.request_reload()
+
+func _resolve_movement_mode(controls_active: bool, aiming: bool) -> ActorNoiseEmitter.MovementMode:
+	if injury_component != null and injury_component.legs_injured:
+		return MovementMode.INJURED
+	if aiming:
+		return MovementMode.ADS
+	if controls_active and Input.is_action_pressed("sneak"):
+		return MovementMode.SNEAK
+	if controls_active and Input.is_action_pressed("sprint"):
+		return MovementMode.SPRINT
+	return MovementMode.WALK
 
 func _on_shot_fired(pitch: float, yaw: float) -> void:
 	_pending_recoil += Vector2(pitch, yaw)

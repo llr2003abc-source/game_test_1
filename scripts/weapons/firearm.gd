@@ -169,6 +169,7 @@ func _fire_shot() -> void:
 	else:
 		_fire_hitscan(direction, fired_round)
 
+	get_node("/root/GameplayAcoustics").emit_sound(muzzle.global_position, weapon_data.gunshot_hearing_radius, AcousticEvent.GUNSHOT, player)
 	_flash_remaining = MUZZLE_FLASH_DURATION
 	muzzle_flash.visible = true
 	var recoil_multiplier: float = injury_component.get_recoil_multiplier() if injury_component != null else 1.0

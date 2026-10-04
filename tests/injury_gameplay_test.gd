@@ -96,10 +96,10 @@ func _run() -> void:
 	player.rotation = Vector3.ZERO
 	Input.action_press("move_forward")
 	player._physics_process(1.0 / 60.0)
-	check(is_equal_approx(Vector2(player.velocity.x, player.velocity.z).length(), 2.4), "actual normal movement is 5 x 0.8 x 0.6 = 2.4 m/s")
+	check(is_equal_approx(Vector2(player.velocity.x, player.velocity.z).length(), 2.5), "actual leg-injured movement uses fixed 2.5 m/s despite torso injury")
 	Input.action_press("aim")
 	player._physics_process(1.0 / 60.0)
-	check(is_equal_approx(Vector2(player.velocity.x, player.velocity.z).length(), 1.44), "actual ADS movement is 3 x 0.48 = 1.44 m/s")
+	check(is_equal_approx(Vector2(player.velocity.x, player.velocity.z).length(), 2.5), "actual leg-injured ADS keeps fixed 2.5 m/s")
 	Input.action_release("move_forward")
 	Input.action_release("aim")
 	Input.action_press("jump")
