@@ -40,6 +40,7 @@ func _run() -> void:
 	current_scene = level
 	var player: Variant = level.get_node("Player")
 	var firearm: Variant = player.get_node("Head/Camera3D/WeaponRoot")
+	firearm.use_legacy_test_provider()
 	var camera: Camera3D = player.get_node("Head/Camera3D")
 	var target: Variant = level.get_node("DamageableTarget")
 	# Phase 6 regression fixture keeps Overall 100; new body tests use 150.

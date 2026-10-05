@@ -1,0 +1,8 @@
+[gd_scene load_steps=3 format=3]
+[sub_resource type="StandardMaterial3D" id="Material"]
+albedo_color = Color(0.65, 0.48, 0.16, 1)
+[sub_resource type="BoxMesh" id="Mesh"]
+size = Vector3(0.08, 0.04, 0.04)
+material = SubResource("Material")
+[node name="ammoVisual" type="MeshInstance3D"]
+mesh = SubResource("Mesh")

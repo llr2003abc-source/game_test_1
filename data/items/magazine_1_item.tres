@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemDefinition" load_steps=3 format=3]
+[ext_resource type="Script" path="res://scripts/inventory/item_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://data/magazines/test_30rd_magazine.tres" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/items/magazine_1_visual.tscn" id="visual"]
+
+[resource]
+script = ExtResource("1")
+item_id = &"magazine_1"
+display_name = "Magazine 1"
+category = 2
+grid_size = Vector2i(1,2)
+magazine_data = ExtResource("2")
+visual_scene = ExtResource("visual")

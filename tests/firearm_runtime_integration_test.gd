@@ -30,6 +30,7 @@ func _run() -> void:
 	current_scene = level
 	var player: Variant = level.get_node("Player")
 	var firearm: Variant = player.get_node("Head/Camera3D/WeaponRoot")
+	firearm.use_legacy_test_provider()
 	player.set_physics_process(false)
 	firearm.set_physics_process(false)
 	check(firearm.has_method("bind_runtime") and firearm.has_method("unbind_runtime"), "Firearm exposes detachable Runtime binding")
@@ -81,6 +82,7 @@ func _run() -> void:
 	second.bind_runtime(persistent)
 	level.add_child(actor)
 	second.set_physics_process(false)
+	second.use_legacy_test_provider()
 	check(second.weapon_runtime == persistent and persistent.loaded_magazine == magazine and persistent.chambered_round == a and persistent.fire_cooldown_remaining == 0.07, "binding before a new Firearm ready never initializes over restored state")
 	actor.free()
 	check(is_instance_valid(persistent) and persistent.loaded_magazine == magazine and magazine.get_round_count() == 17, "freeing an executor does not destroy externally-held Runtime")

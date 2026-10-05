@@ -7,6 +7,10 @@
 [ext_resource type="Script" uid="uid://ifsby4gehdcu" path="res://scripts/combat/body_health_component.gd" id="5_body"]
 [ext_resource type="Script" uid="uid://se2qby6mg6po" path="res://scripts/combat/body_injury_component.gd" id="6_injury"]
 [ext_resource type="Script" uid="uid://ckav0s6587f8u" path="res://scripts/systems/actor_noise_emitter.gd" id="7_noise"]
+[ext_resource type="Script" path="res://scripts/inventory/player_inventory_component.gd" id="8_inventory"]
+
+[ext_resource type="PackedScene" path="res://scenes/items/rig_1_visual.tscn" id="9_rig_visual"]
+[ext_resource type="PackedScene" path="res://scenes/items/backpack_1_visual.tscn" id="10_bag_visual"]
 
 [sub_resource type="CapsuleShape3D" id="PlayerCapsule"]
 radius = 0.3
@@ -57,6 +61,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.32, -0.24, -0.5)
 script = ExtResource("2_firearm")
 weapon_data = ExtResource("3_data")
 injury_component = NodePath("../../../BodyInjuryComponent")
+inventory_managed = true
 
 [node name="WeaponMesh" type="MeshInstance3D" parent="Head/Camera3D/WeaponRoot" unique_id=243088164]
 mesh = SubResource("WeaponMesh")
@@ -69,3 +74,12 @@ visible = false
 light_color = Color(1, 0.72, 0.3, 1)
 light_energy = 2.0
 omni_range = 2.0
+
+[node name="PlayerInventory" type="Node" parent="."]
+script = ExtResource("8_inventory")
+
+[node name="EquipmentVisuals" type="Node3D" parent="."]
+[node name="Rig" parent="EquipmentVisuals" instance=ExtResource("9_rig_visual")]
+position = Vector3(0, 1.15, -0.28)
+[node name="Backpack" parent="EquipmentVisuals" instance=ExtResource("10_bag_visual")]
+position = Vector3(0, 1.05, 0.35)

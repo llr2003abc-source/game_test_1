@@ -5,6 +5,7 @@ enum FireMode { SEMI, AUTO }
 enum FireModel { HITSCAN, PROJECTILE }
 
 @export var weapon_name: String = "Firearm"
+@export var compatible_magazine_type_ids: Array[StringName] = [&"magazine_1"]
 @export var magazine_data: MagazineData
 @export var fire_mode: FireMode = FireMode.AUTO
 @export var fire_model: FireModel = FireModel.HITSCAN

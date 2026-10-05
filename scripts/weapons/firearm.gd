@@ -21,6 +21,8 @@ const HITSCAN_COLLISION_MASK: int = 1 | 4
 		if weapon_runtime != null:
 			weapon_runtime.weapon_data = value
 @export var injury_component: BodyInjuryComponent
+@export var inventory_managed: bool = false
+var reload_coordinator: ReloadCoordinator
 var weapon_runtime: WeaponRuntime
 var fire_mode: WeaponData.FireMode:
 	get:
@@ -51,9 +53,6 @@ var spare_magazines: Array[MagazineInstance] = []
 var is_aiming: bool = false
 var _trigger_held: bool = false
 var _trigger_pressed: bool = false
-var _reload_remaining: float:
-	get:
-		return weapon_runtime.reload_remaining if weapon_runtime != null else 0.0
 var _flash_remaining: float = 0.0
 var _random := RandomNumberGenerator.new()
 
@@ -67,7 +66,7 @@ func _ready() -> void:
 	process_physics_priority = 1
 	_random.randomize()
 	muzzle_flash.visible = false
-	if weapon_runtime == null:
+	if weapon_runtime == null and not inventory_managed:
 		var magazine := MagazineInstance.new()
 		magazine.initialize_full(weapon_data.magazine_data)
 		var runtime := WeaponRuntime.new()
@@ -78,8 +77,29 @@ func _ready() -> void:
 			spare_magazines.append(spare)
 		bind_runtime(runtime)
 		runtime.chamber_next_round()
-	else:
+	elif weapon_runtime != null:
 		bind_runtime(weapon_runtime)
+
+func can_use_weapon() -> bool:
+	if weapon_runtime == null: return false
+	if not inventory_managed: return true
+	if reload_coordinator == null: return false
+	var active: InventoryItemInstance = reload_coordinator.inventory.equipment.get_active_item()
+	return active != null and active.runtime_state == weapon_runtime
+
+func use_legacy_test_provider() -> void:
+	# Explicit Phase 4/8B fixture only. Main never enables this provider.
+	if not inventory_managed: return
+	spare_magazines.clear()
+	if reload_coordinator != null:
+		var rig: RigContainerRuntime = reload_coordinator.inventory.get_equipped_rig()
+		if rig != null:
+			for grid in rig.grids:
+				for placement in grid.placements:
+					if placement.item.runtime_state is MagazineInstance: spare_magazines.append(placement.item.runtime_state)
+	inventory_managed = false
+	reload_coordinator = null
+	publish_weapon_state()
 
 func bind_runtime(runtime: WeaponRuntime) -> void:
 	if weapon_runtime != null:
@@ -119,14 +139,19 @@ func select_reload_magazine() -> MagazineInstance:
 	return selected
 
 func set_trigger(held: bool, just_pressed: bool = false) -> void:
-	_trigger_held = held and weapon_runtime != null
-	_trigger_pressed = (_trigger_pressed or just_pressed) and weapon_runtime != null
+	_trigger_held = held and can_use_weapon()
+	_trigger_pressed = (_trigger_pressed or just_pressed) and can_use_weapon()
 
 func set_aiming(aiming: bool) -> void:
-	is_aiming = aiming and weapon_runtime != null
+	is_aiming = aiming and can_use_weapon()
 
-func request_reload() -> void:
-	if weapon_runtime == null:
+func request_reload(type: WeaponRuntime.ReloadType = WeaponRuntime.ReloadType.TACTICAL) -> void:
+	if not can_use_weapon():
+		return
+	if inventory_managed:
+		if reload_coordinator.request_reload(type):
+			_trigger_pressed = false
+			print("Reloading...")
 		return
 	var replacement: MagazineInstance = select_reload_magazine()
 	var duration: float = weapon_data.reload_time * (injury_component.get_reload_multiplier() if injury_component != null else 1.0)
@@ -157,6 +182,9 @@ func _physics_process(delta: float) -> void:
 	_trigger_pressed = false
 
 func _on_reload_finished(result: WeaponReloadResult) -> void:
+	if inventory_managed:
+		print("Reload complete")
+		return
 	spare_magazines.erase(result.new_magazine)
 	if result.old_magazine != null:
 		spare_magazines.append(result.old_magazine)
@@ -182,7 +210,7 @@ func get_camera_aim_point(direction: Vector3 = Vector3.ZERO) -> Vector3:
 	return endpoint if hit.is_empty() else hit["position"]
 
 func _fire_shot() -> bool:
-	if weapon_runtime == null:
+	if not can_use_weapon():
 		return false
 	var result: WeaponFireResult = weapon_runtime.try_fire()
 	if not result.success:
@@ -209,7 +237,7 @@ func _fire_shot() -> bool:
 	)
 	print("MAG %d | CHAMBER %d | SPARE MAGS %d" % [
 		loaded_magazine.get_round_count() if loaded_magazine != null else 0,
-		1 if chambered_round != null else 0, spare_magazines.size()
+		1 if chambered_round != null else 0, reload_coordinator.get_available_magazine_count() if inventory_managed and reload_coordinator != null else spare_magazines.size()
 	])
 	return true
 
@@ -243,5 +271,5 @@ func process_impact(collider: Node3D, hit_position: Vector3, hit_normal: Vector3
 func publish_weapon_state() -> void:
 	weapon_state_changed.emit(
 		loaded_magazine.get_round_count() if loaded_magazine != null else 0,
-		chambered_round != null, spare_magazines.size(), state
+		chambered_round != null, reload_coordinator.get_available_magazine_count() if inventory_managed and reload_coordinator != null else spare_magazines.size(), state
 	)

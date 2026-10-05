@@ -29,6 +29,7 @@ func _run() -> void:
 		finish()
 		return
 	var firearm: Variant = player.get_node("Head/Camera3D/WeaponRoot")
+	firearm.use_legacy_test_provider()
 	var body: Variant = player.get_node("BodyHealthComponent")
 	var injury: Variant = player.get_node("BodyInjuryComponent")
 	var health: Variant = player.get_node("HealthComponent")
@@ -86,7 +87,7 @@ func _run() -> void:
 	check(head.rotation.x > before_pitch and head.rotation.x < before_pitch + event.pitch, "injured recoil remains smooth")
 	firearm.set_trigger(false, false)
 	firearm.request_reload()
-	check(firearm.state == 1 and is_equal_approx(firearm._reload_remaining, 2.7) and data.reload_time == 2.0, "arms injury starts effective 2.7-second reload without mutating WeaponData")
+	check(firearm.state == 1 and is_equal_approx(firearm.weapon_runtime.reload_remaining, 2.7) and data.reload_time == 2.0, "arms injury starts effective 2.7-second reload without mutating WeaponData")
 	firearm._physics_process(2.69)
 	check(firearm.state == 1, "injured reload does not finish before 2.7 seconds")
 	firearm._physics_process(0.02)

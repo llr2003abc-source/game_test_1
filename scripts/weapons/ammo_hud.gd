@@ -8,6 +8,9 @@ func _ready() -> void:
 	firearm.publish_weapon_state()
 
 func _update_weapon_state(magazine_rounds: int, chamber_loaded: bool, spare_magazine_count: int, state: int) -> void:
+	if firearm.inventory_managed and firearm.weapon_runtime == null:
+		text = "NO ACTIVE WEAPON"
+		return
 	text = "MAG %d | CHAMBER %d\nSPARE MAGS: %d" % [magazine_rounds, 1 if chamber_loaded else 0, spare_magazine_count]
 	if state == Firearm.State.RELOADING:
 		text = "Reloading...\n" + text

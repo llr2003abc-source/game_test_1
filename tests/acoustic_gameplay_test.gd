@@ -59,6 +59,7 @@ func _run() -> void:
 		check(binding_found, "real Input Map binding: " + action.name)
 	await frames(45)
 	var firearm: Variant = player.get_node("Head/Camera3D/WeaponRoot")
+	firearm.use_legacy_test_provider()
 	player.set_physics_process(false)
 	firearm.set_physics_process(false)
 	var injury: Variant = player.get_node("BodyInjuryComponent")
@@ -124,6 +125,7 @@ func _run() -> void:
 	ai_firearm.set_physics_process(false)
 	for holder in [player, actor]:
 		var gun: Variant = holder.get_node("Head/Camera3D/WeaponRoot")
+		gun.use_legacy_test_provider()
 		gun.weapon_data = gun.weapon_data.duplicate()
 		gun.weapon_data.recoil_pitch = 0.0
 		gun.weapon_data.recoil_yaw = 0.0

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ItemDefinition" load_steps=3 format=3]
+[ext_resource type="Script" path="res://scripts/inventory/item_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://data/ammo/weapon1_level2_round.tres" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/items/ammo_visual.tscn" id="visual"]
+
+[resource]
+script = ExtResource("1")
+item_id = &"weapon1_ammo_level2"
+display_name = "Weapon 1 L2 Ammo"
+category = 1
+grid_size = Vector2i(1,1)
+max_stack = 60
+ammo_data = ExtResource("2")
+visual_scene = ExtResource("visual")

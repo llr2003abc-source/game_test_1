@@ -50,6 +50,7 @@ func _run() -> void:
 	current_scene = level
 	var player: Variant = level.get_node("Player")
 	var firearm: Variant = player.get_node("Head/Camera3D/WeaponRoot")
+	firearm.use_legacy_test_provider()
 	var camera: Camera3D = player.get_node("Head/Camera3D")
 	var head: Node3D = player.get_node("Head")
 	var label: Label = level.get_node("CanvasLayer/AmmoLabel")
@@ -262,6 +263,9 @@ func _run() -> void:
 	Input.action_press("reload")
 	await frames(2)
 	Input.action_release("reload")
+	# Phase 9 confirms a single R after the double-tap window.
+	for i in range(14):
+		player._physics_process(1.0 / 60.0)
 	check(firearm.state == Firearm.State.RELOADING, "R reload request reaches Firearm")
 	await create_timer(2.2).timeout
 	check(firearm.state == Firearm.State.READY and round_count(firearm) == 31 and label.text == "MAG 30 | CHAMBER 1\nSPARE MAGS: 2", "real-time tactical reload completes and restores HUD")
