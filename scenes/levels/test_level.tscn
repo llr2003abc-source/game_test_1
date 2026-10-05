@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://c0kqbmmool65k" path="res://scripts/weapons/ammo_hud.gd" id="2_yautc"]
 [ext_resource type="PackedScene" uid="uid://f0l6jpw630r4" path="res://scenes/targets/damageable_target.tscn" id="3_fr1um"]
 [ext_resource type="PackedScene" path="res://scenes/levels/world_loot_test_area.tscn" id="4_loot"]
+[ext_resource type="PackedScene" path="res://scenes/containers/loot_container.tscn" id="5_crate"]
 
 [sub_resource type="Environment" id="Environment_jbqir"]
 background_mode = 1
@@ -325,3 +326,12 @@ shape = SubResource("ThinWallShape")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.1, 0)
 billboard = 1
 text = "Thin wall: 0.02 m"
+
+[node name="LootCrateA" parent="." instance=ExtResource("5_crate")]
+position = Vector3(-4, 0.01, 12)
+
+[node name="LootCrateB" parent="." instance=ExtResource("5_crate")]
+position = Vector3(4, 0.01, 12)
+container_id = &"loot_crate_b"
+display_name = "Loot Crate B"
+contents_variant = 1

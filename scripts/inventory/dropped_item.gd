@@ -50,6 +50,9 @@ func get_interaction_prompt(actor: Node) -> String:
 func get_interaction_position() -> Vector3:
 	return global_position
 
+func supports_hold_manage() -> bool:
+	return true
+
 func can_interact(_actor: Node) -> bool:
 	var registry: InventoryTransactionService=_registry.get_ref() if _registry!=null else null
 	return not is_queued_for_deletion() and item!=null and item.stack_count>0 and registry!=null and registry.owns_world_item(item,self)

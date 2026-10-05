@@ -4,6 +4,8 @@ var grid: InventoryGrid
 var screen: InventoryUI
 var _pressed_item: InventoryItemInstance
 var _press_position: Vector2
+var _pressed_cell: Vector2i
+var _has_press: bool=false
 
 func configure(container: InventoryGrid, inventory_screen: InventoryUI) -> void:
 	grid = container
@@ -32,6 +34,8 @@ func _gui_input(event: InputEvent) -> void:
 		screen.selected_item = grid.get_item_at_cell(Vector2i(event.position/screen.cell_size))
 		_pressed_item = screen.selected_item
 		_press_position = event.position
+		_has_press=true
+		_pressed_cell=grid.get_placement(_pressed_item).position if _pressed_item!=null else Vector2i(-1,-1)
 		screen.show_selection()
 
 func _get_tooltip(at_position: Vector2) -> String:
@@ -39,12 +43,20 @@ func _get_tooltip(at_position: Vector2) -> String:
 	return screen.describe_item(item) if item != null else ""
 
 func _get_drag_data(at_position: Vector2) -> Variant:
-	var item: InventoryItemInstance = _pressed_item if _pressed_item!=null and grid.get_placement(_pressed_item)!=null else grid.get_item_at_cell(Vector2i(at_position/screen.cell_size))
-	if item == null or screen.inventory.transactions.locked: return null
+	if _has_press:
+		var placement:=grid.get_placement(_pressed_item)
+		if placement==null or placement.position!=_pressed_cell:
+			_has_press=false
+			_pressed_item=null
+			return null
+	var item: InventoryItemInstance = _pressed_item if _has_press else grid.get_item_at_cell(Vector2i(at_position/screen.cell_size))
+	if item == null or screen.transactions_locked(): return null
 	var position: Vector2 = _press_position if item==_pressed_item else at_position
 	var grab: Vector2 = position-Vector2(grid.get_placement(item).position)*screen.cell_size
 	var data: Dictionary = screen.begin_drag(item,grab)
 	_pressed_item = null
+	_has_press=false
+	if data.is_empty(): return null
 	set_drag_preview(screen.create_preview(item))
 	return data
 

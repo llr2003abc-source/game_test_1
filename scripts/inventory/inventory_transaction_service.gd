@@ -9,6 +9,34 @@ var runtime_registry: Dictionary = {}
 var world_items: Dictionary = {}
 var inventory: Node
 var locked: bool = false
+var _external_owner: WeakRef
+
+func get_external_owner() -> LootContainerRuntime:
+	return _external_owner.get_ref() if _external_owner!=null else null
+
+func register_external_container(runtime: LootContainerRuntime) -> bool:
+	if runtime==null or runtime.transactions!=self or inventory!=null: return false
+	if get_external_owner()!=null: return get_external_owner()==runtime
+	var pending: Array[InventoryGrid]=[runtime.inventory_grid]
+	var examined: Array[InventoryGrid]=[]
+	var seen_items: Array[InventoryItemInstance]=[]
+	while not pending.is_empty():
+		var grid: InventoryGrid=pending.pop_front()
+		if grid==null or examined.has(grid) or not _can_adopt_grid(grid): return false
+		examined.append(grid)
+		for placement in grid.placements:
+			if seen_items.has(placement.item) or not grid.can_place(placement.item,placement.position,placement.item.rotated): return false
+			seen_items.append(placement.item)
+			pending.append_array(_contents_grids(placement.item))
+	var candidates: Array[InventoryItemInstance]=[]
+	for placement in runtime.inventory_grid.placements: candidates.append_array(_registration_group(placement.item))
+	if not _can_register(candidates): return false
+	_commit_registration(candidates)
+	for grid in examined:
+		grids.append(grid)
+		grid.set_transactions(self)
+	_external_owner=weakref(runtime)
+	return true
 
 func register_grid(grid: InventoryGrid) -> bool:
 	if not grids.has(grid):
@@ -57,20 +85,20 @@ func _can_adopt_grid(grid: InventoryGrid) -> bool:
 			if get_location(placement.item).kind not in [&"transit",&"unregistered"]: return false
 	return true
 
-func _can_register(candidates: Array[InventoryItemInstance]) -> bool:
+func _can_register(candidates: Array[InventoryItemInstance], transferring_from: InventoryTransactionService = null) -> bool:
 	for identity in _runtime_owner_registries.keys():
 		if _runtime_owner_registries[identity].get_ref()==null: _runtime_owner_registries.erase(identity)
 	var pending: Dictionary = {}
 	var seen_items: Array[InventoryItemInstance] = []
 	for item in candidates:
 		if item == null or item.definition == null or not item.definition.is_valid() or item.stack_count < 1 or item.stack_count > item.definition.max_stack: return false
-		if item.get_owner_registry()!=null and item.get_owner_registry()!=self: return false
+		if item.get_owner_registry()!=null and item.get_owner_registry() not in [self,transferring_from]: return false
 		if seen_items.has(item): return false
 		seen_items.append(item)
 		if item.runtime_state == null: continue
 		var identity: int = item.runtime_state.get_instance_id()
 		var runtime_owner: InventoryTransactionService=_runtime_owner_registries[identity].get_ref() if _runtime_owner_registries.has(identity) else null
-		if runtime_owner!=null and runtime_owner!=self: return false
+		if runtime_owner!=null and runtime_owner not in [self,transferring_from]: return false
 		if runtime_registry.has(identity) and runtime_registry[identity] != item: return false
 		if pending.has(identity) and pending[identity] != item: return false
 		pending[identity] = item
@@ -170,7 +198,10 @@ func _commit_pickup_destination(item: InventoryItemInstance, destination: Dictio
 
 func get_location(item: InventoryItemInstance) -> Dictionary:
 	for grid in grids:
-		if grid.get_placement(item) != null: return {"kind":&"grid", "grid":grid}
+		var placement: InventoryPlacement=grid.get_placement(item)
+		if placement != null:
+			if get_external_owner()!=null: return {"kind":&"container","container":get_external_owner(),"grid":grid,"placement":placement}
+			return {"kind":&"grid", "grid":grid}
 	if inventory != null:
 		for slot in inventory.equipment.slots:
 			if inventory.equipment.slots[slot] == item: return {"kind":&"equipment", "slot":slot}
@@ -196,14 +227,14 @@ func move(item: InventoryItemInstance, grid: InventoryGrid, position: Vector2i, 
 
 func remove(item: InventoryItemInstance) -> bool:
 	var source: Dictionary = get_location(item)
-	if locked or source.kind not in [&"grid",&"equipment"]: return false
+	if locked or source.kind not in [&"grid",&"container",&"equipment"]: return false
 	_clear_location(item,source)
 	changed.emit()
 	return true
 
 func rotate(item: InventoryItemInstance) -> bool:
 	var source: Dictionary = get_location(item)
-	if locked or source.kind != &"grid": return false
+	if locked or source.kind not in [&"grid",&"container"]: return false
 	return move(item,source.grid,source.grid.get_placement(item).position,not item.rotated)
 
 func equip(item: InventoryItemInstance, slot: int) -> bool:
@@ -221,20 +252,27 @@ func equip(item: InventoryItemInstance, slot: int) -> bool:
 
 func merge_stacks(source: InventoryItemInstance, target: InventoryItemInstance) -> int:
 	if locked or source == target or not items.has(source) or not items.has(target): return 0
+	var amount: int=_merge_amount(source,target)
+	if amount<=0: return 0
+	_commit_merge(source,target,amount)
+	changed.emit()
+	return amount
+
+func _merge_amount(source: InventoryItemInstance, target: InventoryItemInstance) -> int:
+	if source==target: return 0
 	if source.definition.category != ItemDefinition.Category.AMMO or target.definition.category != ItemDefinition.Category.AMMO or source.definition.item_id != target.definition.item_id or target.definition.max_stack <= 1: return 0
-	var amount: int = mini(source.stack_count,target.definition.max_stack-target.stack_count)
-	if amount <= 0: return 0
+	return maxi(0,mini(source.stack_count,target.definition.max_stack-target.stack_count))
+
+func _commit_merge(source: InventoryItemInstance, target: InventoryItemInstance, amount: int) -> void:
 	source.stack_count -= amount
 	target.stack_count += amount
 	if source.stack_count == 0: _consume_item(source)
-	changed.emit()
-	return amount
 
 func split_stack(source: InventoryItemInstance, amount: int, destination: InventoryGrid = null) -> InventoryItemInstance:
 	if locked or not items.has(source) or source.definition.category != ItemDefinition.Category.AMMO or amount <= 0 or amount >= source.stack_count: return null
 	var location: Dictionary = get_location(source)
 	if destination == null:
-		if location.kind != &"grid": return null
+		if location.kind not in [&"grid",&"container"]: return null
 		destination = location.grid
 	if not grids.has(destination): return null
 	var split := InventoryItemInstance.new(source.definition,amount)
@@ -248,25 +286,36 @@ func split_stack(source: InventoryItemInstance, amount: int, destination: Invent
 
 func load_ammo_into_magazine(ammo: InventoryItemInstance, magazine: InventoryItemInstance, requested_amount: int) -> int:
 	if locked or requested_amount <= 0 or not items.has(ammo) or not items.has(magazine): return 0
+	var amount: int=_load_amount(ammo,magazine,requested_amount)
+	if amount<=0: return 0
+	_commit_load(ammo,magazine,amount)
+	changed.emit()
+	return amount
+
+func _load_amount(ammo: InventoryItemInstance, magazine: InventoryItemInstance, requested_amount: int) -> int:
 	if ammo.definition.category != ItemDefinition.Category.AMMO or magazine.definition.category != ItemDefinition.Category.MAGAZINE: return 0
 	var round_data: AmmoData = ammo.definition.ammo_data
 	var runtime: MagazineInstance = magazine.runtime_state as MagazineInstance
 	if round_data == null or runtime == null or runtime.definition == null or not runtime.definition.compatible_ammo_type_ids.has(round_data.ammo_type_id): return 0
-	var amount: int = mini(requested_amount,mini(ammo.stack_count,runtime.definition.capacity-runtime.get_round_count()))
-	if amount <= 0: return 0
+	return maxi(0,mini(requested_amount,mini(ammo.stack_count,runtime.definition.capacity-runtime.get_round_count())))
+
+func _commit_load(ammo: InventoryItemInstance, magazine: InventoryItemInstance, amount: int) -> void:
+	var runtime: MagazineInstance=magazine.runtime_state
+	var round_data: AmmoData=ammo.definition.ammo_data
 	for i in range(amount): runtime.push_round(round_data)
 	ammo.stack_count -= amount
 	if ammo.stack_count == 0: _consume_item(ammo)
-	changed.emit()
-	return amount
 
 func _clear_location(item: InventoryItemInstance, location: Dictionary) -> void:
-	if location.kind == &"grid": location.grid._commit_remove(item)
+	if location.kind in [&"grid",&"container"]: location.grid._commit_remove(item)
 	elif location.kind == &"equipment": inventory.equipment.slots[location.slot] = null
 	elif location.kind == &"world": world_items.erase(item)
 
 func _consume_item(item: InventoryItemInstance) -> void:
 	_clear_location(item,get_location(item))
+	_release_registration(item)
+
+func _release_registration(item: InventoryItemInstance) -> void:
 	items.erase(item)
 	item._owner_registry=null
 	if item.runtime_state != null:

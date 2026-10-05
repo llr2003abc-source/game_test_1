@@ -38,7 +38,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if target!=null and _interaction_allowed(): _short_target=weakref(target)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("interact",true) and _interaction_allowed():
-		input_resolver.press(current_target,event.echo if event is InputEventKey else false)
+		var allow_hold: bool=not is_instance_valid(current_target) or not current_target.has_method("supports_hold_manage") or current_target.supports_hold_manage()
+		input_resolver.press(current_target,event.echo if event is InputEventKey else false,allow_hold)
 		get_viewport().set_input_as_handled()
 
 func _physics_process(delta: float) -> void:
@@ -65,7 +66,8 @@ func update_target() -> Node:
 			while candidate!=null and not candidate.has_method("interact"): candidate=candidate.get_parent()
 			if candidate!=null and candidate.has_method("can_interact") and candidate.has_method("get_interaction_prompt") and not candidate.is_queued_for_deletion():
 				var point: Vector3=candidate.get_interaction_position() if candidate.has_method("get_interaction_position") else hit.position
-				if origin.distance_to(point)<=interaction_range and candidate.can_interact(actor): target=candidate
+				var collider_allowed: bool=not candidate.has_method("is_interaction_collider") or candidate.is_interaction_collider(hit.collider)
+				if collider_allowed and origin.distance_to(point)<=interaction_range+0.000001 and candidate.can_interact(actor): target=candidate
 	if target!=current_target: cancel_interaction()
 	current_target=target
 	_publish_prompt()
@@ -80,7 +82,7 @@ func try_interact() -> bool:
 
 func _publish_prompt() -> void:
 	var text: String=current_target.get_interaction_prompt(actor) if is_instance_valid(current_target) else ""
-	if input_resolver.pending: text+="\nHOLD F... %d%%"%mini(100,int(input_resolver.elapsed/hold_manage_threshold*100))
+	if input_resolver.pending and input_resolver.hold_enabled: text+="\nHOLD F... %d%%"%mini(100,int(input_resolver.elapsed/hold_manage_threshold*100))
 	if text!=_prompt_text:
 		_prompt_text=text
 		prompt_changed.emit(text)

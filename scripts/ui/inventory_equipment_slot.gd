@@ -5,9 +5,10 @@ var screen: InventoryUI
 
 func _get_drag_data(at_position: Vector2) -> Variant:
 	var item: InventoryItemInstance = screen.inventory.equipment.slots[slot]
-	if item == null or screen.inventory.transactions.locked: return null
+	if item == null or screen.transactions_locked(): return null
 	var grab: Vector2 = (at_position/size)*Vector2(item.get_size())*screen.cell_size
 	var data: Dictionary = screen.begin_drag(item,grab)
+	if data.is_empty(): return null
 	set_drag_preview(screen.create_preview(item))
 	return data
 
