@@ -51,8 +51,8 @@ func _get_drag_data(at_position: Vector2) -> Variant:
 			return null
 	var item: InventoryItemInstance = _pressed_item if _has_press else grid.get_item_at_cell(Vector2i(at_position/screen.cell_size))
 	if item == null or screen.transactions_locked(): return null
-	var position: Vector2 = _press_position if item==_pressed_item else at_position
-	var grab: Vector2 = position-Vector2(grid.get_placement(item).position)*screen.cell_size
+	var pointer_position: Vector2 = _press_position if item==_pressed_item else at_position
+	var grab: Vector2 = pointer_position-Vector2(grid.get_placement(item).position)*screen.cell_size
 	var data: Dictionary = screen.begin_drag(item,grab)
 	_pressed_item = null
 	_has_press=false

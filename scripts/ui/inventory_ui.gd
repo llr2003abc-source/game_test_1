@@ -318,12 +318,12 @@ func _grid_signature(grid: InventoryGrid) -> Array:
 	for placement in grid.placements: result.append([placement.item,placement.position,placement.item.rotated,describe_item(placement.item)])
 	return result
 
-func describe_item(item: InventoryItemInstance, rotation: Variant = null) -> String:
+func describe_item(item: InventoryItemInstance, preview_rotated: Variant = null) -> String:
 	var text: String = item.definition.display_name
 	if item.runtime_state is MagazineInstance: text += "\n%d/%d"%[item.runtime_state.get_round_count(),item.runtime_state.definition.capacity]
 	elif item.runtime_state is WeaponRuntime: text += "\nMAG %d + CH %d"%[item.runtime_state.get_magazine_round_count(),int(item.runtime_state.chambered_round!=null)]
 	elif item.definition.category==ItemDefinition.Category.AMMO: text += "\nx%d"%item.stack_count
-	var extent: Vector2i = item.get_size() if rotation==null else item.get_size(rotation)
+	var extent: Vector2i = item.get_size() if preview_rotated==null else item.get_size(preview_rotated)
 	return text+"\n%dx%d"%[extent.x,extent.y]
 
 func show_selection() -> void:
@@ -429,10 +429,10 @@ func commit_drag_candidate(data: Dictionary) -> bool:
 	_committing_drag = true
 	var ok: bool
 	if candidate.kind==&"world_drop":
-		var transform:=WorldItemFactory.grounded_drop_transform(player,(inventory.transactions.world_items.size()%3-1)*0.15)
-		var query:=PhysicsRayQueryParameters3D.create(player.global_position+Vector3.UP*0.35,transform.origin+Vector3.UP*0.35,1|8,[player.get_rid()])
+		var drop_transform:=WorldItemFactory.grounded_drop_transform(player,(inventory.transactions.world_items.size()%3-1)*0.15)
+		var query:=PhysicsRayQueryParameters3D.create(player.global_position+Vector3.UP*0.35,drop_transform.origin+Vector3.UP*0.35,1|8,[player.get_rid()])
 		if player.get_world_3d().direct_space_state.intersect_ray(query).is_empty():
-			ok=inventory.transactions.drop_item_to_world(data.item,get_tree().current_scene,transform)!=null
+			ok=inventory.transactions.drop_item_to_world(data.item,get_tree().current_scene,drop_transform)!=null
 		else: status.text="Drop blocked by world geometry"
 	elif candidate.kind==&"equipment": ok = drop_on_equipment(data,candidate.slot)
 	elif candidate.kind in [&"load",&"stack"]: ok = drop_on_grid(data,candidate.grid,candidate.position)
@@ -452,10 +452,10 @@ func _source_unchanged() -> bool:
 	if drag_context.source_equipment_slot>=0: return location.kind==&"equipment" and location.slot==drag_context.source_equipment_slot
 	return location.kind==&"world" and drag_data.has("world") and location.node==drag_data.world.get_ref()
 
-func _move_to_grid(item: InventoryItemInstance, grid: InventoryGrid, cell: Vector2i, rotation: bool) -> bool:
+func _move_to_grid(item: InventoryItemInstance, grid: InventoryGrid, cell: Vector2i, preview_rotated: bool) -> bool:
 	if mode==Mode.CONTAINER_LOOT:
-		return ExternalInventoryTransfer.transfer(container_access,item,grid.get_transactions(),{"kind":&"grid","grid":grid,"position":cell,"rotated":rotation})
-	return inventory.transactions.move(item,grid,cell,rotation)
+		return ExternalInventoryTransfer.transfer(container_access,item,grid.get_transactions(),{"kind":&"grid","grid":grid,"position":cell,"rotated":preview_rotated})
+	return inventory.transactions.move(item,grid,cell,preview_rotated)
 
 func can_drop_on_grid(data: Dictionary, grid: InventoryGrid, cell: Vector2i) -> bool:
 	if transactions_locked() or not data.has("item"): return false
@@ -480,8 +480,10 @@ func drop_on_grid(data: Dictionary, grid: InventoryGrid, cell: Vector2i) -> bool
 	return ok
 
 func drop_on_equipment(data: Dictionary, slot: int) -> bool:
+	if not data.has("item") or transactions_locked(): return false
 	if data.has("world"):
 		return is_vicinity_item(data.item) and inventory.transactions.pickup_world_item(data.world.get_ref(),{"kind":&"equipment","slot":slot},true).success
+	if data.item.get_owner_registry()==inventory.transactions: return inventory.transactions.equip(data.item,slot)
 	if mode==Mode.CONTAINER_LOOT: return data.has("item") and ExternalInventoryTransfer.transfer(container_access,data.item,inventory.transactions,{"kind":&"equipment","slot":slot})
 	return data.has("item") and inventory.transactions.equip(data.item,slot)
 

@@ -11,10 +11,10 @@ static func create(definition: ItemDefinition, count: int = 1, magazine_rounds: 
 			runtime.initialize_full(definition.magazine_data)
 		ItemDefinition.Category.PRIMARY_WEAPON,ItemDefinition.Category.SECONDARY_WEAPON,ItemDefinition.Category.PISTOL:
 			if definition.weapon_data==null or definition.magazine_item_definition==null: return null
-			var magazine := MagazineInstance.new()
-			magazine.initialize_full(definition.magazine_item_definition.magazine_data)
+			var initial_magazine := MagazineInstance.new()
+			initial_magazine.initialize_full(definition.magazine_item_definition.magazine_data)
 			runtime = WeaponRuntime.new()
-			runtime.initialize(definition.weapon_data,magazine)
+			runtime.initialize(definition.weapon_data,initial_magazine)
 			runtime.chamber_next_round()
 		ItemDefinition.Category.RIG: runtime = RigContainerRuntime.new()
 		ItemDefinition.Category.BACKPACK: runtime = BackpackContainerRuntime.new()

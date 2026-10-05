@@ -239,10 +239,10 @@ func rotate(item: InventoryItemInstance) -> bool:
 
 func equip(item: InventoryItemInstance, slot: int) -> bool:
 	if locked or inventory == null or not inventory.equipment.can_equip(item,slot): return false
-	var current: InventoryItemInstance = inventory.equipment.slots[slot]
-	if current == item: return true
-	if current != null: return false
 	var source: Dictionary = get_location(item)
+	var current: InventoryItemInstance = inventory.equipment.slots[slot]
+	if current == item: return item.get_owner_registry()==self and items.has(item) and source.kind==&"equipment" and source.slot==slot
+	if current != null: return false
 	if source.kind in [&"weapon_magazine",&"world"] or not register_item(item): return false
 	_clear_location(item,source)
 	item.rotated = false

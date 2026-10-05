@@ -7,6 +7,7 @@ static func transfer(access: LootContainerAccess, item: InventoryItemInstance, d
 	if source==null or destination==null or not access.permits(source,destination): return false
 	var original:=source.get_location(item)
 	if original.kind not in [&"grid",&"container",&"equipment"]: return false
+	if source==destination and location.get("kind")==&"equipment": return source.equip(item,location.get("slot",-1))
 	if not destination._valid_pickup_destination(item,location,true): return false
 	if source==destination:
 		return source.move(item,location.grid,location.position,location.get("rotated",item.rotated)) if location.kind==&"grid" else source.equip(item,location.slot)
