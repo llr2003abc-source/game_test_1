@@ -3,6 +3,7 @@
 [ext_resource type="PackedScene" uid="uid://cyr775nh4yhwq" path="res://scenes/player/player.tscn" id="1_player"]
 [ext_resource type="Script" uid="uid://c0kqbmmool65k" path="res://scripts/weapons/ammo_hud.gd" id="2_yautc"]
 [ext_resource type="PackedScene" uid="uid://f0l6jpw630r4" path="res://scenes/targets/damageable_target.tscn" id="3_fr1um"]
+[ext_resource type="PackedScene" path="res://scenes/levels/world_loot_test_area.tscn" id="4_loot"]
 
 [sub_resource type="Environment" id="Environment_jbqir"]
 background_mode = 1
@@ -206,6 +207,9 @@ shape = SubResource("Target_03Shape")
 
 [node name="Player" parent="." unique_id=954225460 instance=ExtResource("1_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 10)
+
+[node name="WorldLootTestArea" parent="." instance=ExtResource("4_loot")]
+position = Vector3(-7, 0, 6)
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=334681714]
 

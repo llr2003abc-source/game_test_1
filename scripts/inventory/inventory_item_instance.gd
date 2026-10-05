@@ -5,6 +5,10 @@ var definition: ItemDefinition
 var stack_count: int = 1
 var rotated: bool = false
 var runtime_state: RefCounted
+var _owner_registry: WeakRef
+
+func get_owner_registry() -> InventoryTransactionService:
+	return _owner_registry.get_ref() if _owner_registry!=null else null
 
 func _init(data: ItemDefinition = null, count: int = 1, runtime: RefCounted = null) -> void:
 	definition = data

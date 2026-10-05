@@ -12,6 +12,7 @@ enum Category { GENERIC, AMMO, MAGAZINE, PRIMARY_WEAPON, SECONDARY_WEAPON, PISTO
 @export var ammo_data: AmmoData
 @export var magazine_data: MagazineData
 @export var weapon_data: WeaponData
+@export var magazine_item_definition: ItemDefinition
 @export var visual_scene: PackedScene
 
 func is_valid() -> bool:

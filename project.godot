@@ -32,6 +32,11 @@ enabled=PackedStringArray("res://addons/dialogue_manager/plugin.cfg", "res://add
 
 [input]
 
+interact={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":70)]
+}
+
 inventory_toggle={
 "deadzone": 0.5,
 "events": [Object(InputEventKey,"keycode":4194306)]

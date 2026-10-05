@@ -1,6 +1,8 @@
-[gd_resource type="Resource" script_class="ItemDefinition" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="ItemDefinition" load_steps=5 format=3]
 [ext_resource type="Script" path="res://scripts/inventory/item_definition.gd" id="1"]
 [ext_resource type="Resource" path="res://data/weapons/test_rifle.tres" id="2"]
+[ext_resource type="Resource" path="res://data/items/magazine_1_item.tres" id="magazine"]
+[ext_resource type="PackedScene" path="res://scenes/items/weapon_1_visual.tscn" id="visual"]
 [resource]
 script = ExtResource("1")
 item_id = &"primary_weapon_1"
@@ -9,3 +11,5 @@ category = 3
 grid_size = Vector2i(5,2)
 allowed_equipment_slots = Array[int]([0])
 weapon_data = ExtResource("2")
+magazine_item_definition = ExtResource("magazine")
+visual_scene = ExtResource("visual")

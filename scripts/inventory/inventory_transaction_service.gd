@@ -2,6 +2,7 @@ class_name InventoryTransactionService
 extends RefCounted
 
 signal changed()
+static var _runtime_owner_registries: Dictionary = {}
 var grids: Array[InventoryGrid] = []
 var items: Array[InventoryItemInstance] = []
 var runtime_registry: Dictionary = {}
@@ -30,8 +31,16 @@ func register_item(item: InventoryItemInstance) -> bool:
 
 func _registration_group(item: InventoryItemInstance) -> Array[InventoryItemInstance]:
 	var candidates: Array[InventoryItemInstance] = [item]
+	if item.runtime_state is WeaponRuntime and item.runtime_state.loaded_magazine!=null:
+		var loaded: InventoryItemInstance=find_runtime_item(item.runtime_state.loaded_magazine)
+		if loaded!=null:
+			var location: Dictionary=get_location(loaded)
+			if location.kind not in [&"transit",&"unregistered"] and not (location.kind==&"weapon_magazine" and location.weapon==item): return [null]
+			candidates.append(loaded)
+		elif item.definition.magazine_item_definition!=null:
+			candidates.append(InventoryItemInstance.new(item.definition.magazine_item_definition,1,item.runtime_state.loaded_magazine))
 	for grid in _contents_grids(item):
-		for placement in grid.placements: candidates.append(placement.item)
+		for placement in grid.placements: candidates.append_array(_registration_group(placement.item))
 	return candidates
 
 func _contents_grids(item: InventoryItemInstance) -> Array[InventoryGrid]:
@@ -49,14 +58,19 @@ func _can_adopt_grid(grid: InventoryGrid) -> bool:
 	return true
 
 func _can_register(candidates: Array[InventoryItemInstance]) -> bool:
+	for identity in _runtime_owner_registries.keys():
+		if _runtime_owner_registries[identity].get_ref()==null: _runtime_owner_registries.erase(identity)
 	var pending: Dictionary = {}
 	var seen_items: Array[InventoryItemInstance] = []
 	for item in candidates:
 		if item == null or item.definition == null or not item.definition.is_valid() or item.stack_count < 1 or item.stack_count > item.definition.max_stack: return false
+		if item.get_owner_registry()!=null and item.get_owner_registry()!=self: return false
 		if seen_items.has(item): return false
 		seen_items.append(item)
 		if item.runtime_state == null: continue
 		var identity: int = item.runtime_state.get_instance_id()
+		var runtime_owner: InventoryTransactionService=_runtime_owner_registries[identity].get_ref() if _runtime_owner_registries.has(identity) else null
+		if runtime_owner!=null and runtime_owner!=self: return false
 		if runtime_registry.has(identity) and runtime_registry[identity] != item: return false
 		if pending.has(identity) and pending[identity] != item: return false
 		pending[identity] = item
@@ -64,11 +78,73 @@ func _can_register(candidates: Array[InventoryItemInstance]) -> bool:
 
 func _commit_registration(candidates: Array[InventoryItemInstance]) -> void:
 	for item in candidates:
-		if item.runtime_state != null: runtime_registry[item.runtime_state.get_instance_id()] = item
+		item._owner_registry = weakref(self)
+		if item.runtime_state != null:
+			var identity: int=item.runtime_state.get_instance_id()
+			runtime_registry[identity] = item
+			_runtime_owner_registries[identity] = weakref(self)
 		if not items.has(item): items.append(item)
 
 func find_runtime_item(runtime: RefCounted) -> InventoryItemInstance:
 	return runtime_registry.get(runtime.get_instance_id()) if runtime != null else null
+
+func owns_world_item(item: InventoryItemInstance, node: Node) -> bool:
+	return items.has(item) and world_items.get(item)==node and is_instance_valid(node) and get_location(item).kind==&"world"
+
+func drop_item_to_world(item: InventoryItemInstance, parent: Node3D, world_transform: Transform3D) -> DroppedItem:
+	if locked or not items.has(item) or not is_instance_valid(parent) or parent.is_queued_for_deletion(): return null
+	var source: Dictionary=get_location(item)
+	if source.kind not in [&"grid",&"equipment",&"transit"] or not register_item(item): return null
+	var node: DroppedItem=WorldItemFactory._prepare(item,self)
+	_clear_location(item,source)
+	world_items[item]=node
+	WorldItemFactory._attach(node,parent,world_transform)
+	changed.emit()
+	return node
+
+func pickup_world_item(world: DroppedItem, destination: Dictionary = {}) -> Dictionary:
+	var failure: Dictionary={"success":false,"accepted_count":0,"remaining_count":world.item.stack_count if is_instance_valid(world) and world.item!=null else 0}
+	if locked or not is_instance_valid(world) or world.is_queued_for_deletion() or not owns_world_item(world.item,world): return failure
+	var item: InventoryItemInstance=world.item
+	var plan: Dictionary={"merges":[],"destination":destination}
+	if destination.is_empty() and inventory!=null: plan=PickupPlacementPolicy.plan_pickup(inventory,item)
+	destination=plan.destination
+	if destination.is_empty() and plan.merges.is_empty(): return failure
+	if not destination.is_empty() and not _valid_pickup_destination(item,destination): return failure
+	if not register_item(item): return failure
+	var count: int=item.stack_count
+	for transfer in plan.merges:
+		transfer.item.stack_count+=transfer.amount
+		item.stack_count-=transfer.amount
+	var remaining: int=item.stack_count
+	if not destination.is_empty():
+		_clear_location(item,{"kind":&"world"})
+		_commit_pickup_destination(item,destination)
+		remaining=0
+		world.retire()
+	elif item.stack_count==0:
+		_consume_item(item)
+		world.retire()
+	changed.emit()
+	return {"success":true,"accepted_count":count-remaining,"remaining_count":remaining}
+
+func _valid_pickup_destination(item: InventoryItemInstance, destination: Dictionary) -> bool:
+	if destination.get("kind")==&"grid":
+		var grid: InventoryGrid=destination.get("grid")
+		return grids.has(grid) and grid.kind!=&"secure" and grid.can_place(item,destination.position,destination.get("rotated",item.rotated))
+	if destination.get("kind")==&"equipment" and inventory!=null:
+		var slot: int=destination.get("slot",-1)
+		return inventory.equipment.can_equip(item,slot) and inventory.equipment.slots[slot]==null
+	return false
+
+func _commit_pickup_destination(item: InventoryItemInstance, destination: Dictionary) -> void:
+	if destination.kind==&"grid": destination.grid._commit_place(item,destination.position,destination.get("rotated",item.rotated))
+	else:
+		var equipment: EquipmentComponent=inventory.equipment
+		var had_active: bool=equipment.get_active_item()!=null
+		equipment.slots[destination.slot]=item
+		item.rotated=false
+		if not had_active and destination.slot in [0,1,2,3]: equipment.active_weapon_slot=destination.slot as EquipmentComponent.Slot
 
 func get_location(item: InventoryItemInstance) -> Dictionary:
 	for grid in grids:
@@ -170,4 +246,8 @@ func _clear_location(item: InventoryItemInstance, location: Dictionary) -> void:
 func _consume_item(item: InventoryItemInstance) -> void:
 	_clear_location(item,get_location(item))
 	items.erase(item)
-	if item.runtime_state != null: runtime_registry.erase(item.runtime_state.get_instance_id())
+	item._owner_registry=null
+	if item.runtime_state != null:
+		var identity: int=item.runtime_state.get_instance_id()
+		runtime_registry.erase(identity)
+		_runtime_owner_registries.erase(identity)

@@ -94,9 +94,5 @@ func _on_inventory_changed() -> void:
 
 func _spawn_dropped_magazine(item: InventoryItemInstance) -> void:
 	if not is_inside_tree() or get_tree().current_scene == null: return
-	var dropped: DroppedItem = load("res://scenes/items/dropped_item.tscn").instantiate()
-	dropped.configure(item)
-	get_tree().current_scene.add_child(dropped)
 	var character: Node3D = get_parent()
-	dropped.global_position = character.global_position + character.global_basis.x * 0.55 + Vector3.UP * 0.12
-	transactions.world_items[item] = dropped
+	WorldItemFactory.materialize_reserved(item,transactions,get_tree().current_scene,WorldItemFactory.grounded_drop_transform(character))
