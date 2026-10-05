@@ -91,6 +91,7 @@ func _test_level() -> void:
 	for i in range(5): key_press(KEY_F)
 	await physics_frame
 	check(inv.get_equipped_backpack().grid.placements.filter(func(p): return p.item==ammo).size()==1,"viewport F spam cannot duplicate original")
+	inv.transactions.equip(InventoryItemFactory.create(load("res://data/items/primary_weapon_1_item.tres")),1)
 	var weapon: InventoryItemInstance=worlds[3].item
 	var active: WeaponRuntime=player.firearm.weapon_runtime
 	await aim_at(player,worlds[3])

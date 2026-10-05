@@ -102,7 +102,29 @@ func drop_item_to_world(item: InventoryItemInstance, parent: Node3D, world_trans
 	changed.emit()
 	return node
 
-func pickup_world_item(world: DroppedItem, destination: Dictionary = {}) -> Dictionary:
+func preview_world_pickup(world: DroppedItem) -> PickupPreviewResult:
+	var count: int=world.item.stack_count if is_instance_valid(world) and world.item!=null else 0
+	if locked: return PickupPreviewResult.new(0,count,&"INVENTORY_LOCKED")
+	if not is_instance_valid(world) or world.is_queued_for_deletion() or not owns_world_item(world.item,world) or inventory==null: return PickupPreviewResult.new(0,count)
+	var plan: Dictionary=PickupPlacementPolicy.plan_pickup(inventory,world.item)
+	var accepted: int=0
+	for transfer in plan.merges: accepted+=transfer.amount
+	if not plan.destination.is_empty() and _valid_pickup_destination(world.item,plan.destination): accepted=count
+	return PickupPreviewResult.new(accepted,count-accepted,&"NONE" if accepted==count else (&"PARTIAL_SPACE" if accepted>0 else &"NO_SPACE"))
+
+func pickup_world_item_to_grid(world: DroppedItem, grid: InventoryGrid, cell: Vector2i, rotation: bool) -> Dictionary:
+	return pickup_world_item(world,{"kind":&"grid","grid":grid,"position":cell,"rotated":rotation},true)
+
+func pickup_world_ammo_into(world: DroppedItem, target: InventoryItemInstance) -> Dictionary:
+	var failure: Dictionary={"success":false,"accepted_count":0,"remaining_count":world.item.stack_count if is_instance_valid(world) and world.item!=null else 0}
+	if locked or not is_instance_valid(world) or world.is_queued_for_deletion() or not owns_world_item(world.item,world) or get_location(target).kind!=&"grid": return failure
+	var source: InventoryItemInstance=world.item
+	var count: int=load_ammo_into_magazine(source,target,source.stack_count) if target.definition.category==ItemDefinition.Category.MAGAZINE else merge_stacks(source,target)
+	if count<=0: return failure
+	if source.stack_count==0: world.retire()
+	return {"success":true,"accepted_count":count,"remaining_count":source.stack_count}
+
+func pickup_world_item(world: DroppedItem, destination: Dictionary = {}, manual: bool = false) -> Dictionary:
 	var failure: Dictionary={"success":false,"accepted_count":0,"remaining_count":world.item.stack_count if is_instance_valid(world) and world.item!=null else 0}
 	if locked or not is_instance_valid(world) or world.is_queued_for_deletion() or not owns_world_item(world.item,world): return failure
 	var item: InventoryItemInstance=world.item
@@ -110,7 +132,7 @@ func pickup_world_item(world: DroppedItem, destination: Dictionary = {}) -> Dict
 	if destination.is_empty() and inventory!=null: plan=PickupPlacementPolicy.plan_pickup(inventory,item)
 	destination=plan.destination
 	if destination.is_empty() and plan.merges.is_empty(): return failure
-	if not destination.is_empty() and not _valid_pickup_destination(item,destination): return failure
+	if not destination.is_empty() and not _valid_pickup_destination(item,destination,manual): return failure
 	if not register_item(item): return failure
 	var count: int=item.stack_count
 	for transfer in plan.merges:
@@ -128,10 +150,10 @@ func pickup_world_item(world: DroppedItem, destination: Dictionary = {}) -> Dict
 	changed.emit()
 	return {"success":true,"accepted_count":count-remaining,"remaining_count":remaining}
 
-func _valid_pickup_destination(item: InventoryItemInstance, destination: Dictionary) -> bool:
+func _valid_pickup_destination(item: InventoryItemInstance, destination: Dictionary, manual: bool = false) -> bool:
 	if destination.get("kind")==&"grid":
 		var grid: InventoryGrid=destination.get("grid")
-		return grids.has(grid) and grid.kind!=&"secure" and grid.can_place(item,destination.position,destination.get("rotated",item.rotated))
+		return grids.has(grid) and (manual or grid.kind!=&"secure") and grid.can_place(item,destination.position,destination.get("rotated",item.rotated))
 	if destination.get("kind")==&"equipment" and inventory!=null:
 		var slot: int=destination.get("slot",-1)
 		return inventory.equipment.can_equip(item,slot) and inventory.equipment.slots[slot]==null

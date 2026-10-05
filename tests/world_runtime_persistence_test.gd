@@ -83,6 +83,7 @@ func _test_weapons() -> void:
 		var inv:=inventory_fixture()
 		var active: InventoryItemInstance=inv.equipment.get_active_item()
 		if scenario=="empty": inv.transactions.remove(active)
+		else: inv.transactions.equip(InventoryItemFactory.create(active.definition),1)
 		if scenario=="full": inv.get_equipped_backpack().grid.place_item(item(5,5),Vector2i.ZERO)
 		var world:=Node3D.new()
 		root.add_child(world)

@@ -11,7 +11,7 @@ func can_equip(item: InventoryItemInstance, slot: int) -> bool:
 	if slot in [Slot.PRIMARY,Slot.SECONDARY]:
 		if category not in [ItemDefinition.Category.PRIMARY_WEAPON,ItemDefinition.Category.SECONDARY_WEAPON] or not item.runtime_state is WeaponRuntime: return false
 		if not item.definition.allowed_equipment_slots.is_empty(): return item.definition.allowed_equipment_slots.has(slot)
-		return category == ItemDefinition.Category.PRIMARY_WEAPON if slot==Slot.PRIMARY else category==ItemDefinition.Category.SECONDARY_WEAPON
+		return true
 	if category != {Slot.PISTOL:ItemDefinition.Category.PISTOL,Slot.KNIFE:ItemDefinition.Category.MELEE,Slot.RIG:ItemDefinition.Category.RIG,Slot.BACKPACK:ItemDefinition.Category.BACKPACK}[slot]: return false
 	match slot:
 		Slot.PISTOL: return item.runtime_state is WeaponRuntime

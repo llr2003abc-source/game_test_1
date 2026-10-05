@@ -23,6 +23,7 @@ func _run() -> void:
 		var gun: InventoryItemInstance=InventoryItemFactory.create(load("res://data/items/primary_weapon_1_item.tres"),1,17)
 		check(policy.find_destination(inv,gun).slot==0,"empty compatible primary preferred")
 		inv.transactions.equip(gun,0)
+		inv.transactions.equip(InventoryItemFactory.create(gun.definition),1)
 		var second: InventoryItemInstance=InventoryItemFactory.create(gun.definition,1,17)
 		check(policy.find_destination(inv,second).is_empty(),"occupied primary/full bag fails without switching")
 		bag.remove_item(bag.placements[0].item)

@@ -80,6 +80,9 @@ func _run() -> void:
 		key.keycode=KEY_F
 		key.pressed=true
 		interactor._unhandled_input(key)
+		key=key.duplicate()
+		key.pressed=false
+		interactor._unhandled_input(key)
 		interactor._physics_process(0.016)
 		check(b.calls==2,"F event requests interaction on physics tick")
 		b.queue_free()

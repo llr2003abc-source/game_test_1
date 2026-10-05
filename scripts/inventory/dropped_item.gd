@@ -37,8 +37,15 @@ func get_display_info() -> String:
 	elif item.definition.category==ItemDefinition.Category.AMMO: text+=" x%d"%item.stack_count
 	return text
 
-func get_interaction_prompt(_actor: Node) -> String:
-	return "[F] PICK UP\n"+get_display_info()
+func get_interaction_prompt(actor: Node) -> String:
+	var prefix: String=""
+	var inventory: PlayerInventoryComponent=actor.get_node_or_null("PlayerInventory") if is_instance_valid(actor) else null
+	if inventory!=null:
+		var result:=inventory.transactions.preview_world_pickup(self)
+		if result.reason==&"NO_SPACE": prefix="（背包已满）\n"
+		elif result.reason==&"PARTIAL_SPACE": prefix="（空间不足：可拾取 %d / %d）\n"%[result.accepted_count,item.stack_count]
+		elif result.reason==&"INVENTORY_LOCKED": prefix="（当前无法整理）\n"
+	return prefix+"[F] 拾取 "+get_display_info()+"\n[长按 F] 管理附近物品"
 
 func get_interaction_position() -> Vector3:
 	return global_position

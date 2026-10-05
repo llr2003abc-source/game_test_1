@@ -12,13 +12,15 @@ func _init() -> void:
 	visible = false
 
 func show_candidate(candidate: Dictionary, pixel_cell_size: float) -> void:
-	visible = candidate.get("kind",&"none") != &"none"
+	visible = candidate.get("kind",&"none") not in [&"none",&"world_drop"]
 	if not visible: return
 	preview_rect = candidate.preview_rect
 	footprint_size = candidate.footprint_size
 	is_valid = candidate.valid
 	kind = candidate.kind
 	cell_size = pixel_cell_size
+	if kind==&"placement" and not is_valid: visible=false
+	if candidate.has("grid_rect") and not candidate.grid_rect.encloses(preview_rect): visible=false
 	queue_redraw()
 
 func _draw() -> void:

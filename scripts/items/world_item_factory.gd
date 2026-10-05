@@ -18,8 +18,8 @@ static func materialize_reserved(item: InventoryItemInstance, registry: Inventor
 	_attach(node,parent,world_transform)
 	return node
 
-static func grounded_drop_transform(character: Node3D) -> Transform3D:
-	var ahead: Vector3=character.global_position-character.global_basis.z*0.8
+static func grounded_drop_transform(character: Node3D, lateral_offset: float = 0.0) -> Transform3D:
+	var ahead: Vector3=character.global_position-character.global_basis.z*0.8+character.global_basis.x*lateral_offset
 	var query:=PhysicsRayQueryParameters3D.create(ahead+Vector3.UP,ahead-Vector3.UP*4,1)
 	var hit: Dictionary=character.get_world_3d().direct_space_state.intersect_ray(query)
 	var ground: Vector3=hit.position if not hit.is_empty() else ahead

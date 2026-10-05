@@ -12,6 +12,14 @@ class DragSurface extends PanelContainer:
 
 @export var cell_size: float = 48.0
 @export_range(12.0,18.0,0.5) var snap_radius_pixels: float = 16.0
+@export var vicinity_radius: float = 3.0
+var vicinity_mode: bool = false
+var nearby_panel: VicinityLootPanel
+var nearby_scroll: ScrollContainer
+var highlighted_item: InventoryItemInstance
+var _nearby_signature: Array=[]
+var _vicinity_elapsed: float = 0.0
+var _vicinity_position: Vector3
 var player: Node
 var inventory: PlayerInventoryComponent
 var views: Array[InventoryGridView] = []
@@ -54,13 +62,42 @@ func _ready() -> void:
 	placement_preview = InventoryPlacementPreview.new()
 	add_child(placement_preview)
 	placement_preview.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	player.get_node("PlayerInteractor").manage_requested.connect(open_vicinity)
 
 func toggle() -> void:
 	visible = not visible
+	vicinity_mode=false
 	player.set_inventory_open(visible)
 	if get_viewport().gui_is_dragging(): get_viewport().gui_cancel_drag()
 	finish_drag()
 	if visible: refresh()
+
+func open_vicinity(target: Node) -> void:
+	if inventory.transactions.locked or not target is DroppedItem or not target.can_interact(player): return
+	vicinity_mode=true
+	highlighted_item=target.item
+	visible=true
+	player.set_inventory_open(true)
+	if get_viewport().gui_is_dragging(): get_viewport().gui_cancel_drag()
+	finish_drag()
+	refresh()
+
+func is_vicinity_item(item: InventoryItemInstance) -> bool:
+	if not visible or not vicinity_mode or inventory.transactions.locked: return false
+	var node: DroppedItem=inventory.transactions.world_items.get(item)
+	return is_instance_valid(node) and VicinityLootQuery.find_visible(player,inventory.transactions,vicinity_radius).has(node)
+
+func _refresh_nearby(force: bool = false) -> void:
+	if not visible or not vicinity_mode or not is_instance_valid(nearby_panel): return
+	var nodes:=VicinityLootQuery.find_visible(player,inventory.transactions,vicinity_radius)
+	var signature: Array=[]
+	for node in nodes: signature.append([node.item.get_instance_id(),node.item.stack_count,node.item.rotated,describe_item(node.item)])
+	if not force and signature==_nearby_signature: return
+	if drag_context!=null and not _committing_drag:
+		if get_viewport().gui_is_dragging(): get_viewport().gui_cancel_drag()
+		finish_drag()
+	_nearby_signature=signature
+	nearby_panel.set_items(nodes,highlighted_item)
 
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("inventory_toggle"):
@@ -76,12 +113,18 @@ func _input(event: InputEvent) -> void:
 			if not inventory.transactions.rotate(selected_item): status.text="Rotation unavailable"
 		get_viewport().set_input_as_handled()
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("inventory_toggle") and not _toggle_handled: toggle()
 	_toggle_handled = false
 	if drag_context!=null and get_viewport().gui_is_dragging():
 		var pointer: Vector2 = panel.get_global_mouse_position()
 		if not _has_drag_pointer or pointer!=_drag_pointer: update_drag_candidate(pointer,drag_data)
+	if visible and vicinity_mode:
+		_vicinity_elapsed+=delta
+		if _vicinity_elapsed>=0.2 or player.global_position.distance_to(_vicinity_position)>=0.2:
+			_vicinity_elapsed=0.0
+			_vicinity_position=player.global_position
+			_refresh_nearby()
 
 func _on_changed() -> void:
 	if not visible: return
@@ -108,6 +151,8 @@ func refresh() -> void:
 		child.queue_free()
 	views.clear()
 	equipment_views.clear()
+	nearby_panel=null
+	nearby_scroll=null
 	var header := HBoxContainer.new()
 	header.add_child(label("PLAYER INVENTORY  |  %.2f kg"%inventory.get_total_weight()))
 	var spacer := Control.new()
@@ -126,7 +171,7 @@ func refresh() -> void:
 	layout.add_child(left)
 	left.add_child(label("EQUIPMENT"))
 	for slot in range(6):
-		left.add_child(label(["PRIMARY","SECONDARY","PISTOL","KNIFE","RIG","BACKPACK"][slot]))
+		left.add_child(label(["WEAPON SLOT 1","WEAPON SLOT 2","PISTOL","KNIFE","RIG","BACKPACK"][slot]))
 		var button := InventoryEquipmentSlot.new()
 		button.slot = slot
 		button.screen = self
@@ -165,6 +210,18 @@ func refresh() -> void:
 	secure_column.add_child(secure_space)
 	secure_column.add_child(label("SECURE CONTAINER"))
 	add_grid(secure_column,inventory.secure.grid)
+	if vicinity_mode:
+		var nearby_column:=VBoxContainer.new()
+		layout.add_child(nearby_column)
+		nearby_column.add_child(label("NEARBY — drag here to drop"))
+		nearby_scroll=ScrollContainer.new()
+		nearby_scroll.custom_minimum_size=Vector2(cell_size*8+16,400)
+		nearby_scroll.size_flags_vertical=Control.SIZE_EXPAND_FILL
+		nearby_column.add_child(nearby_scroll)
+		nearby_panel=VicinityLootPanel.new()
+		nearby_panel.screen=self
+		nearby_scroll.add_child(nearby_panel)
+		_refresh_nearby(true)
 	var actions := HBoxContainer.new()
 	content.add_child(actions)
 	actions.add_child(label("Drag items • R rotate • Split ammo:"))
@@ -204,6 +261,7 @@ func begin_drag(item: InventoryItemInstance, grab_offset: Vector2 = Vector2.ZERO
 	var cell: Vector2i = grid.get_placement(item).position if grid!=null else Vector2i(-1,-1)
 	drag_context = InventoryDragContext.new(item,cell_size,grab_offset,grid,cell,source.get("slot",-1))
 	drag_data = {"item":item,"rotated":item.rotated,"context":drag_context}
+	if source.kind==&"world": drag_data.world=weakref(source.node)
 	selected_item = item
 	_redraw_source()
 	return drag_data
@@ -234,6 +292,7 @@ func finish_drag() -> void:
 
 func _redraw_source() -> void:
 	for view in views: view.queue_redraw()
+	if is_instance_valid(nearby_panel): nearby_panel.queue_redraw()
 	for slot in equipment_views:
 		var dragging: bool = drag_context!=null and inventory.equipment.slots[slot]==drag_context.item
 		equipment_views[slot].modulate.a = 0.4 if dragging else 1.0
@@ -255,6 +314,9 @@ func update_drag_candidate(mouse_position: Vector2, data: Dictionary = {}) -> Di
 				candidate.preview_rect = equipment_views[slot].get_global_rect()
 				candidate.footprint_size = Vector2i.ONE
 				break
+	if candidate.kind==&"none":
+		if vicinity_mode and is_instance_valid(nearby_scroll) and nearby_scroll.get_global_rect().has_point(mouse_position):
+			candidate={"kind":&"world_drop","valid":not inventory.transactions.locked and not drag_data.has("world"),"snapped":false}
 	if candidate.kind==&"none":
 		var ideal: Vector2 = drag_context.get_ghost_top_left(mouse_position)
 		var best_distance: float = INF
@@ -278,17 +340,26 @@ func _resolve_grid_view(view: InventoryGridView, mouse_position: Vector2) -> Dic
 	var footprint: Vector2i = candidate.target_item.get_size() if candidate.target_item!=null else drag_context.get_preview_size()
 	candidate.footprint_size = footprint
 	candidate.preview_rect = Rect2(origin+Vector2(candidate.position)*cell_size,Vector2(footprint)*cell_size)
+	candidate.grid_rect = view.get_global_rect()
 	return candidate
 
 func commit_drag_candidate(data: Dictionary) -> bool:
 	if drag_context==null or data.get("item")!=drag_context.item or not drag_context.candidate.get("valid",false): return false
+	if data.has("world") and not is_vicinity_item(data.item): return false
 	var candidate: Dictionary = drag_context.candidate
 	if candidate.kind in [&"load",&"stack"]:
 		if candidate.grid.get_item_at_cell(candidate.position)!=candidate.target_item: return false
 	_committing_drag = true
 	var ok: bool
-	if candidate.kind==&"equipment": ok = drop_on_equipment(data,candidate.slot)
+	if candidate.kind==&"world_drop":
+		var transform:=WorldItemFactory.grounded_drop_transform(player,(inventory.transactions.world_items.size()%3-1)*0.15)
+		var query:=PhysicsRayQueryParameters3D.create(player.global_position+Vector3.UP*0.35,transform.origin+Vector3.UP*0.35,1|8,[player.get_rid()])
+		if player.get_world_3d().direct_space_state.intersect_ray(query).is_empty():
+			ok=inventory.transactions.drop_item_to_world(data.item,get_tree().current_scene,transform)!=null
+		else: status.text="Drop blocked by world geometry"
+	elif candidate.kind==&"equipment": ok = drop_on_equipment(data,candidate.slot)
 	elif candidate.kind in [&"load",&"stack"]: ok = drop_on_grid(data,candidate.grid,candidate.position)
+	elif data.has("world"): ok=inventory.transactions.pickup_world_item_to_grid(data.world.get_ref(),candidate.grid,candidate.position,candidate.rotated).success
 	# Commit the displayed cell/rotation; never resolve a second mouse position.
 	else: ok = inventory.transactions.move(drag_context.item,candidate.grid,candidate.position,candidate.rotated)
 	_committing_drag = false
@@ -306,13 +377,18 @@ func drop_on_grid(data: Dictionary, grid: InventoryGrid, cell: Vector2i) -> bool
 	var item: InventoryItemInstance = data.item
 	var target: InventoryItemInstance = grid.get_item_at_cell(cell)
 	var ok: bool
-	if target!=null and target!=item and item.definition.category==ItemDefinition.Category.AMMO:
+	if data.has("world"):
+		if not is_vicinity_item(item): return false
+		ok=inventory.transactions.pickup_world_ammo_into(data.world.get_ref(),target).success if target!=null else inventory.transactions.pickup_world_item_to_grid(data.world.get_ref(),grid,cell,data.rotated).success
+	elif target!=null and target!=item and item.definition.category==ItemDefinition.Category.AMMO:
 		ok = inventory.transactions.load_ammo_into_magazine(item,target,item.stack_count)>0 if target.definition.category==ItemDefinition.Category.MAGAZINE else inventory.transactions.merge_stacks(item,target)>0
 	else: ok = inventory.transactions.move(item,grid,cell,data.rotated)
 	if not ok and status != null: status.text="Invalid placement, compatibility, or inventory locked"
 	return ok
 
 func drop_on_equipment(data: Dictionary, slot: int) -> bool:
+	if data.has("world"):
+		return is_vicinity_item(data.item) and inventory.transactions.pickup_world_item(data.world.get_ref(),{"kind":&"equipment","slot":slot},true).success
 	return data.has("item") and inventory.transactions.equip(data.item,slot)
 
 func _split_selected() -> void:
