@@ -10,6 +10,14 @@ class DragSurface extends PanelContainer:
 	func _notification(what: int) -> void:
 		if what==NOTIFICATION_DRAG_END and screen!=null: screen.finish_drag()
 
+# Godot owns this invisible native anchor; the single visible ghost is UI-owned.
+class NativeDragAnchor extends Control:
+	var context: InventoryDragContext
+	var caption: String
+	var cell_size: float
+	func get_body_rect() -> Rect2:
+		return Rect2(-context.grab_offset_pixels,Vector2(context.get_preview_size())*cell_size)
+
 @export var cell_size: float = 48.0
 @export_range(12.0,18.0,0.5) var snap_radius_pixels: float = 16.0
 @export var vicinity_radius: float = 3.0
@@ -55,6 +63,8 @@ var item_context: ItemContextMenu
 var action_executor: ItemActionExecutor
 var split_dialog: AmmoSplitDialog
 var inspection_dialog: AcceptDialog
+var drag_overlay: CanvasLayer
+var preview_overlay: CanvasLayer
 
 func _ready() -> void:
 	player = get_parent()
@@ -77,8 +87,14 @@ func _ready() -> void:
 	inventory.inventory_changed.connect(_on_changed)
 	player.firearm.weapon_state_changed.connect(_on_weapon_changed)
 	placement_preview = InventoryPlacementPreview.new()
-	add_child(placement_preview)
+	preview_overlay=CanvasLayer.new()
+	preview_overlay.layer=layer+1
+	add_child(preview_overlay)
+	preview_overlay.add_child(placement_preview)
 	placement_preview.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	drag_overlay=CanvasLayer.new()
+	drag_overlay.layer=layer+2
+	add_child(drag_overlay)
 	player.get_node("PlayerInteractor").manage_requested.connect(open_vicinity)
 	portable_windows=PortableWindowManager.new(self)
 	action_executor=ItemActionExecutor.new(self)
@@ -186,7 +202,10 @@ func _process(delta: float) -> void:
 		return
 	if drag_context!=null and get_viewport().gui_is_dragging():
 		var pointer: Vector2 = panel.get_global_mouse_position()
-		if not _has_drag_pointer or pointer!=_drag_pointer: update_drag_candidate(pointer,drag_data)
+		if not _source_unchanged() or not can_access_item(drag_context.item) or is_item_busy(drag_context.item):
+			get_viewport().gui_cancel_drag()
+			finish_drag()
+		else: update_drag_candidate(pointer,drag_data)
 	if visible and vicinity_mode:
 		_vicinity_elapsed+=delta
 		if _vicinity_elapsed>=0.2 or player.global_position.distance_to(_vicinity_position)>=0.2:
@@ -370,12 +389,18 @@ func begin_drag(item: InventoryItemInstance, grab_offset: Vector2 = Vector2.ZERO
 	drag_data = {"item":item,"rotated":item.rotated,"context":drag_context}
 	if source.kind==&"world": drag_data.world=weakref(source.node)
 	selected_item = item
+	drag_preview=InventoryDragGhost.new(drag_context,describe_item(item,item.rotated),cell_size)
+	drag_overlay.add_child(drag_preview)
+	drag_preview.position=panel.get_global_mouse_position()
 	_redraw_source()
 	return drag_data
 
 func create_preview(item: InventoryItemInstance) -> Control:
-	var preview := InventoryDragGhost.new(drag_context,describe_item(item,drag_context.preview_rotation),cell_size)
-	drag_preview = preview
+	var preview:=NativeDragAnchor.new()
+	preview.context=drag_context
+	preview.caption=describe_item(item,drag_context.preview_rotation)
+	preview.cell_size=cell_size
+	preview.mouse_filter=Control.MOUSE_FILTER_IGNORE
 	return preview
 
 func rotate_drag() -> void:
@@ -388,7 +413,9 @@ func rotate_drag() -> void:
 	if _has_drag_pointer: update_drag_candidate(_drag_pointer,drag_data)
 
 func finish_drag() -> void:
-	if is_instance_valid(drag_preview) and drag_preview.get_parent()==null: drag_preview.free()
+	if is_instance_valid(drag_preview):
+		drag_preview.get_parent().remove_child(drag_preview)
+		drag_preview.free()
 	drag_data = {}
 	drag_preview = null
 	drag_context = null
@@ -410,6 +437,7 @@ func update_drag_candidate(mouse_position: Vector2, data: Dictionary = {}) -> Di
 	if drag_context==null or (not data.is_empty() and data.get("item")!=drag_context.item): return {"kind":&"none","valid":false}
 	_drag_pointer = mouse_position
 	_has_drag_pointer = true
+	if is_instance_valid(drag_preview): drag_preview.position=mouse_position
 	var candidate: Dictionary = {"kind":&"none","valid":false}
 	var covering_window: PortableContainerWindow=portable_windows.window_at(mouse_position)
 	# Only control rectangles are scanned. Placement searches remain local3x3.
@@ -420,14 +448,18 @@ func update_drag_candidate(mouse_position: Vector2, data: Dictionary = {}) -> Di
 	if candidate.kind==&"none" and covering_window==null:
 		for slot in equipment_views:
 			if equipment_views[slot].get_global_rect().has_point(mouse_position):
-				candidate = InventoryDragCandidateResolver.resolve_equipment(drag_context,inventory.equipment,slot,transactions_locked())
+				var equipped: InventoryItemInstance=inventory.equipment.slots[slot]
+				if equipped!=null and equipped!=drag_context.item and equipped.definition.has_capability(&"portable_container"):
+					candidate=InventoryDragCandidateResolver.resolve_container_content(drag_context,equipped,null,transactions_locked())
+					_validate_content_target(candidate)
+				else: candidate = InventoryDragCandidateResolver.resolve_equipment(drag_context,inventory.equipment,slot,transactions_locked())
 				candidate.preview_rect = equipment_views[slot].get_global_rect()
 				candidate.footprint_size = Vector2i.ONE
 				break
 	if candidate.kind==&"none" and covering_window==null:
 		if vicinity_mode and is_instance_valid(nearby_scroll) and nearby_scroll.get_global_rect().has_point(mouse_position):
 			candidate={"kind":&"world_drop","valid":not inventory.transactions.locked and not drag_data.has("world"),"snapped":false}
-	if candidate.kind==&"none":
+	if candidate.kind==&"none" and covering_window==null:
 		var ideal: Vector2 = drag_context.get_ghost_top_left(mouse_position)
 		var best_distance: float = INF
 		for view in portable_windows.get_views(mouse_position):
@@ -438,6 +470,7 @@ func update_drag_candidate(mouse_position: Vector2, data: Dictionary = {}) -> Di
 				candidate = near
 				best_distance = near.snap_distance
 	drag_context.set_candidate(candidate)
+	candidate.occlusion_rects=_preview_occlusions(candidate.get("preview_window"))
 	placement_preview.show_candidate(candidate,cell_size)
 	if candidate.kind!=&"none" and status!=null:
 		status.text = ("VALID " if candidate.valid else "INVALID ")+String(candidate.kind).to_upper()
@@ -447,18 +480,45 @@ func update_drag_candidate(mouse_position: Vector2, data: Dictionary = {}) -> Di
 func _resolve_grid_view(view: InventoryGridView, mouse_position: Vector2) -> Dictionary:
 	var origin: Vector2 = view.get_global_rect().position
 	var candidate: Dictionary = InventoryDragCandidateResolver.resolve_grid(drag_context,view.grid,mouse_position,origin,cell_size,snap_radius_pixels,transactions_locked())
+	if candidate.kind==&"container_content" and not view.get_interaction_rect().has_point(mouse_position): return {"kind":&"none","valid":false}
 	var footprint: Vector2i = candidate.target_item.get_size() if candidate.target_item!=null else drag_context.get_preview_size()
 	candidate.footprint_size = footprint
-	candidate.preview_rect = Rect2(origin+Vector2(candidate.position)*cell_size,Vector2(footprint)*cell_size)
+	var visual_cell: Vector2i=candidate.get("hover_position",candidate.position)
+	candidate.preview_rect = Rect2(origin+Vector2(visual_cell)*cell_size,Vector2(footprint)*cell_size)
 	candidate.grid_rect = view.get_interaction_rect()
+	candidate.actual_grid_rect=view.get_global_rect()
+	candidate.preview_window=view.portable_window
+	candidate.render_invalid=true
+	if candidate.kind==&"container_content": _validate_content_target(candidate)
 	return candidate
+
+func _preview_occlusions(window: PortableContainerWindow=null) -> Array[Rect2]:
+	var rectangles: Array[Rect2]=[]
+	var above: bool=window==null
+	for control in portable_windows.surface.get_children():
+		if control==window:
+			above=true
+			continue
+		if above and control is PortableContainerWindow and control.is_visible_in_tree(): rectangles.append(control.get_global_rect())
+	return rectangles
+
+func _validate_content_target(candidate: Dictionary) -> void:
+	candidate.target_signature=item_location_signature(candidate.target_item)
+	if not can_access_item(candidate.target_item) or is_item_busy(candidate.target_item):
+		candidate.valid=false
+		candidate.reason=&"BUSY_OR_ACCESS"
 
 func commit_drag_candidate(data: Dictionary) -> bool:
 	if drag_context==null or data.get("item")!=drag_context.item or not drag_context.candidate.get("valid",false): return false
 	if transactions_locked() or not _source_unchanged(): return false
 	if not can_access_item(drag_context.item) or is_item_busy(drag_context.item): return false
+	if not drag_context.item.get_owner_registry().validate_complete_subtree(drag_context.item).valid: return false
 	if data.has("world") and not is_vicinity_item(data.item): return false
 	var candidate: Dictionary = drag_context.candidate
+	if candidate.kind==&"placement" and candidate.grid==drag_context.source_container and candidate.position==drag_context.source_placement and candidate.rotated==drag_context.source_rotation: return true
+	if candidate.kind==&"container_content":
+		if not can_access_item(candidate.target_item) or is_item_busy(candidate.target_item) or item_location_signature(candidate.target_item)!=candidate.target_signature: return false
+		if not candidate.target_item.get_storage_grids().has(candidate.grid) or not candidate.grid.can_place(drag_context.item,candidate.position,candidate.rotated): return false
 	if candidate.kind in [&"load",&"stack"]:
 		if candidate.grid.get_item_at_cell(candidate.position)!=candidate.target_item: return false
 	_committing_drag = true
@@ -472,9 +532,24 @@ func commit_drag_candidate(data: Dictionary) -> bool:
 	elif candidate.kind==&"equipment": ok = drop_on_equipment(data,candidate.slot)
 	elif candidate.kind in [&"load",&"stack"]: ok = drop_on_grid(data,candidate.grid,candidate.position)
 	elif data.has("world"): ok=inventory.transactions.pickup_world_item_to_grid(data.world.get_ref(),candidate.grid,candidate.position,candidate.rotated).success
+	elif candidate.kind==&"container_content": ok=_commit_content_deposit(candidate)
 	# Commit the displayed cell/rotation; never resolve a second mouse position.
 	else: ok = _move_to_grid(drag_context.item,candidate.grid,candidate.position,candidate.rotated)
 	_committing_drag = false
+	return ok
+
+func _commit_content_deposit(candidate: Dictionary) -> bool:
+	var item: InventoryItemInstance=drag_context.item
+	var source:=item.get_owner_registry()
+	var destination: InventoryTransactionService=candidate.grid.get_transactions()
+	var location: Dictionary={"kind":&"grid","grid":candidate.grid,"position":candidate.position,"rotated":candidate.rotated}
+	if not destination._valid_pickup_destination(item,location,true): return false
+	var lease:=source.reserve_item(item)
+	if lease==null: return false
+	var ok: bool
+	if source==destination: ok=source.commit_reservation(lease,location)
+	else: ok=ExternalInventoryTransfer.transfer(container_access,item,destination,location)
+	if not ok: source.cancel_reservation(lease)
 	return ok
 
 func _source_unchanged() -> bool:
@@ -532,6 +607,8 @@ func on_portable_window_closing(item: InventoryItemInstance) -> void:
 	close_item_context(true)
 	if drag_context==null: return
 	var affected: bool=item.get_storage_grids().has(drag_context.candidate.get("grid"))
+	var visual_window: PortableContainerWindow=drag_context.candidate.get("preview_window")
+	if is_instance_valid(visual_window) and visual_window.item==item: affected=true
 	for location in item_location_signature(drag_context.item):
 		if location[0]==item: affected=true
 	if affected:

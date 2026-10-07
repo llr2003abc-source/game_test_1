@@ -74,6 +74,9 @@ func clamp_position() -> void:
 	position=Vector2(clampf(position.x,0,maxf(0,viewport_size.x-size.x)),clampf(position.y,0,maxf(0,viewport_size.y-size.y)))
 
 func _title_input(event: InputEvent) -> void:
+	if manager.screen.drag_context!=null:
+		_moving_title=false
+		return
 	if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_LEFT:
 		_moving_title=event.pressed
 		if event.pressed: manager.bring_to_front(self)

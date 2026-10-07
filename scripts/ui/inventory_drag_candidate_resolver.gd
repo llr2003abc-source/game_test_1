@@ -8,6 +8,8 @@ static func resolve_grid(context: InventoryDragContext, grid: InventoryGrid, mou
 	var pointer: Vector2 = (mouse_position-grid_origin)/cell_size
 	var pointer_cell := Vector2i(floori(pointer.x),floori(pointer.y))
 	var target: InventoryItemInstance = grid.get_item_at_cell(pointer_cell)
+	if target!=null and target.definition.has_capability(&"portable_container"):
+		return resolve_container_content(context,target,grid,locked)
 	if context.item.definition.category==ItemDefinition.Category.AMMO and target!=null and target!=context.item:
 		if target.definition.category in [ItemDefinition.Category.MAGAZINE,ItemDefinition.Category.AMMO]:
 			result.kind = &"load" if target.definition.category==ItemDefinition.Category.MAGAZINE else &"stack"
@@ -33,6 +35,37 @@ static func resolve_grid(context: InventoryDragContext, grid: InventoryGrid, mou
 				result.valid = true
 				result.snapped = true
 				result.snap_distance = distance
+	return result
+
+static func resolve_container_content(context: InventoryDragContext, target: InventoryItemInstance, hover_grid: InventoryGrid=null, locked: bool=false) -> Dictionary:
+	var result: Dictionary={"kind":&"container_content","target_item":target,"hover_grid":hover_grid,"hover_position":hover_grid.get_placement(target).position if hover_grid!=null else Vector2i(-1,-1),"grid":null,"position":Vector2i(-1,-1),"rotated":context.preview_rotation,"valid":false,"snapped":false,"snap_distance":0.0,"reason":&"NO_SPACE"}
+	if target==context.item:
+		result.reason=&"SELF"
+		return result
+	var registry:=target.get_owner_registry()
+	var source:=context.item.get_owner_registry()
+	if locked or (registry!=null and (registry.locked or registry.is_reserved(target))) or (source!=null and (source.locked or source.is_reserved(context.item))):
+		result.reason=&"BUSY"
+		return result
+	var incoming: Dictionary=InventoryOwnershipGraph.collect_item_subtree(context.item)
+	var contents: Dictionary=InventoryOwnershipGraph.collect_item_subtree(target)
+	if not incoming.valid or not contents.valid or (registry!=null and not registry._can_register(incoming.items,source)):
+		result.reason=&"INVALID_OWNERSHIP"
+		return result
+	for storage: InventoryGrid in target.get_storage_grids():
+		if InventoryOwnershipGraph.would_create_cycle(context.item,storage):
+			result.reason=&"CYCLE_OR_DEPTH"
+			return result
+		if storage.kind in [&"rig",&"pocket",&"secure"] and context.item.definition.has_capability(&"portable_container"):
+			result.reason=&"NOT_ALLOWED"
+			continue
+		var cell: Vector2i=storage.find_first_free_position(context.item,context.preview_rotation)
+		if cell.x<0: continue
+		result.grid=storage
+		result.position=cell
+		result.valid=true
+		result.reason=&"NONE"
+		return result
 	return result
 
 static func can_load(ammo: InventoryItemInstance, target: InventoryItemInstance, locked: bool = false) -> bool:
