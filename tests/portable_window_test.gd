@@ -1,0 +1,80 @@
+extends "res://tests/recursive_weight_test.gd"
+
+func _run() -> void:
+	check(FileAccess.file_exists("res://scripts/ui/portable_container_window.gd"),"portable view window exists")
+	if failures:
+		finish_windows()
+		return
+	var level: Node3D=load("res://scenes/levels/test_level.tscn").instantiate()
+	root.add_child(level)
+	current_scene=level
+	var p: Variant=level.get_node("Player")
+	p.set_physics_process(false)
+	p.firearm.set_physics_process(false)
+	var ui: Variant=p.get_node("InventoryUI")
+	ui.toggle()
+	var inv: PlayerInventoryComponent=p.inventory
+	var a: InventoryItemInstance=inv.equipment.slots[5]
+	var b:=bag()
+	var c:=bag()
+	a.runtime_state.grid.place_item(b,Vector2i(1,0))
+	b.runtime_state.grid.place_item(c,Vector2i.ZERO)
+	var initial_ammo: InventoryItemInstance=a.runtime_state.grid.get_item_at_cell(Vector2i.ZERO)
+	inv.transactions.move(initial_ammo,inv.pockets[0],Vector2i.ZERO)
+	var before: float=inv.get_total_weight()
+	var wa: Variant=ui.open_portable_container(a)
+	check(wa!=null and wa.views[0].grid==a.runtime_state.grid,"window uses actual root bag grid")
+	var control_id: int=wa.get_instance_id()
+	check(ui.open_portable_container(a)==wa and ui.portable_windows.windows.size()==1,"one window per actual Item identity")
+	var wb: Variant=ui.open_portable_container(b,wa)
+	var wc: Variant=ui.open_portable_container(c,wb)
+	check(wb.parent_window==wa and wc.parent_window==wb,"open ancestry records A B C")
+	check(ui.portable_windows.windows.size()==3 and inv.get_total_weight()==before,"opening windows changes no owner/count/weight")
+	ui.portable_windows.bring_to_front(wa)
+	check(wa.get_index()>wb.get_index() and wa.get_instance_id()==control_id,"focus changes z order without rebuild")
+	var origin: Vector2=wa.position
+	wa.move_title(Vector2(25,15))
+	check(wa.position==origin+Vector2(25,15) and ui.drag_context==null,"title dragging moves only window")
+	check(inv.transactions.equip(a,5),"successful same slot no-op")
+	ui.portable_windows.validate_windows()
+	check(ui.portable_windows.windows.size()==3 and ui.open_portable_container(a)==wa,"same slot no-op does not close/rebuild any window")
+	check(inv.transactions.move(c,b.runtime_state.grid,Vector2i(1,0)),"child item physical move")
+	ui.portable_windows.validate_windows()
+	check(ui.portable_windows.windows.size()==2 and ui.portable_windows.windows.has(a) and ui.portable_windows.windows.has(b),"child move closes child descendants but preserves ancestors")
+	wc=ui.open_portable_container(c,wb)
+	ui.portable_windows.close_window(wb)
+	check(ui.portable_windows.windows.size()==1 and ui.portable_windows.windows.has(a),"closing B closes C independently of A")
+	wb=ui.open_portable_container(b,wa)
+	wc=ui.open_portable_container(c,wb)
+	check(inv.transactions.move(b,a.runtime_state.grid,Vector2i.ZERO),"B moves within A")
+	ui.portable_windows.validate_windows()
+	check(ui.portable_windows.windows.size()==1,"B move closes B and C")
+	wb=ui.open_portable_container(b,wa)
+	var data: Dictionary=ui.begin_drag(a)
+	check(not data.is_empty(),"actual drag context reused")
+	await process_frame
+	await process_frame
+	var candidate: Dictionary=ui.update_drag_candidate(wb.views[0].get_global_rect().position+Vector2(5,5),data)
+	check(not candidate.valid and not ui.commit_drag_candidate(data),"ancestor cycle rejects in displayed window candidate before commit")
+	ui.finish_drag()
+	var loose:=ammo(10)
+	a.runtime_state.grid.place_item(loose,Vector2i(4,0))
+	data=ui.begin_drag(loose,Vector2(4,4))
+	candidate=ui.update_drag_candidate(wb.views[0].get_global_rect().position+Vector2(4,4),data)
+	check(candidate.valid and ui.commit_drag_candidate(data),"Main actual item drags into nested window with same transaction")
+	ui.finish_drag()
+	check(b.runtime_state.grid.get_placement(loose)!=null and is_equal_approx(inv.get_total_weight(),before+0.12),"cross-window movement retains owner and weight")
+	ui.portable_windows.close_all()
+	var rig: InventoryItemInstance=inv.equipment.slots[4]
+	var wr: Variant=ui.open_portable_container(rig)
+	check(wr.views.size()==rig.get_storage_grids().size(),"Rig builds actual dynamic grids")
+	for index in range(wr.views.size()): check(wr.views[index].grid==rig.get_storage_grids()[index],"Rig view shares actual runtime grid")
+	ui.toggle()
+	check(ui.portable_windows.windows.is_empty(),"inventory close closes portable views")
+	level.queue_free()
+	await process_frame
+	finish_windows()
+
+func finish_windows() -> void:
+	print("PORTABLE_WINDOW_RESULT assertions=%d failures=%d"%[assertions,failures])
+	quit(1 if failures else 0)

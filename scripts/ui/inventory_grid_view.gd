@@ -6,6 +6,7 @@ var _pressed_item: InventoryItemInstance
 var _press_position: Vector2
 var _pressed_cell: Vector2i
 var _has_press: bool=false
+var portable_window: PortableContainerWindow
 
 func configure(container: InventoryGrid, inventory_screen: InventoryUI) -> void:
 	grid = container
@@ -30,6 +31,10 @@ func _draw() -> void:
 			draw_string(get_theme_default_font(),rectangle.position+Vector2(4,13+i*13),lines[i],HORIZONTAL_ALIGNMENT_LEFT,rectangle.size.x-8,10,Color(1,1,1,alpha))
 
 func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_RIGHT and event.pressed:
+		screen.show_item_context(grid.get_item_at_cell(Vector2i(event.position/screen.cell_size)),get_global_transform()*event.position,portable_window)
+		accept_event()
+		return
 	if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_LEFT and event.pressed:
 		screen.selected_item = grid.get_item_at_cell(Vector2i(event.position/screen.cell_size))
 		_pressed_item = screen.selected_item
@@ -37,10 +42,22 @@ func _gui_input(event: InputEvent) -> void:
 		_has_press=true
 		_pressed_cell=grid.get_placement(_pressed_item).position if _pressed_item!=null else Vector2i(-1,-1)
 		screen.show_selection()
+		if portable_window!=null: portable_window.manager.bring_to_front(portable_window)
+		if event.double_click and _pressed_item!=null:
+			screen.open_portable_container(_pressed_item,portable_window)
+			_has_press=false
 
 func _get_tooltip(at_position: Vector2) -> String:
 	var item: InventoryItemInstance = grid.get_item_at_cell(Vector2i(at_position/screen.cell_size))
 	return screen.describe_item(item) if item != null else ""
+
+func get_interaction_rect() -> Rect2:
+	var rectangle: Rect2=get_global_rect()
+	var ancestor: Node=get_parent()
+	while ancestor is Control:
+		if ancestor.clip_contents: rectangle=rectangle.intersection(ancestor.get_global_rect())
+		ancestor=ancestor.get_parent()
+	return rectangle
 
 func _get_drag_data(at_position: Vector2) -> Variant:
 	if _has_press:

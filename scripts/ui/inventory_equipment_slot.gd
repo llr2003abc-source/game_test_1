@@ -3,6 +3,13 @@ extends Button
 var slot: int
 var screen: InventoryUI
 
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_RIGHT and event.pressed:
+		screen.show_item_context(screen.inventory.equipment.slots[slot],get_global_transform()*event.position)
+		accept_event()
+	if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_LEFT and event.pressed and event.double_click:
+		screen.open_portable_container(screen.inventory.equipment.slots[slot])
+
 func _get_drag_data(at_position: Vector2) -> Variant:
 	var item: InventoryItemInstance = screen.inventory.equipment.slots[slot]
 	if item == null or screen.transactions_locked(): return null

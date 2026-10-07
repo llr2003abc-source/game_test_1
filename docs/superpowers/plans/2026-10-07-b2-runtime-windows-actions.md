@@ -1,0 +1,14 @@
+# Phase 11.1B-2 implementation plan
+
+The supplied B2 specification authorizes implementation in the current Editor workspace. Baseline: commit 24ce1e5; 3216 assertions in 64 executions pass unchanged. Do not commit, change the addon, implement B3/B4, or change existing test expectations.
+
+1. B2-0: add generic reservation records to InventoryTransactionService, expose active transit reservations as ownership roots, preserve ownership when transferring, and make ReloadCoordinator reserve both incoming and outgoing items before runtime notifications. Add cancel and failed-commit coverage. Verify new tests, the entire old matrix, parser checks and Main R/Arms/RR before/during/after. This is a hard gate before UI edits.
+2. B2-1: add view-only portable windows using the actual item's grids; identity keyed manager, parent/child lifetime and access validation. Reuse existing grid views and drag candidate/transaction routes. Test duplicate focus, title drag, hierarchy invalidation, no-op, actual dynamic layout and cross-window drag.
+3. B2-2: add capability-based action descriptors/resolver/executor, read-only inspection, existing WORLD drop, and a dynamically bounded split dialog. Revalidate actual items at execution; close stale menus; refuse busy items. Split prevalidates the same grid before changing counts and retains ownership through its atomic commit.
+4. Run one fresh-context final review, correct demonstrated defects, run all old and new tests, check all scripts and Main acceptance. Verify 313 addon hashes, restore pristine Main, write the 78-item report and stop before B3.
+
+Reservation design: a record is a transaction lease, not another copy or another owner. Its logical root is active only when the actual item has no physical location/parent. A tracked loaded magazine keeps its existing weapon edge; when swapped out it immediately becomes a reserved root until placed or committed to WORLD. Legacy get_location.kind remains transit during reservation. Weight traverses the same validated ownership forest, with explicit reserved roots added to carried roots; unreserved transit and WORLD roots are not carried roots.
+
+Windows never own inventory. An opening records actual item's location, owner, ancestor chain and parent window. Reopening uses the same window. Moving an item invalidates its window descendants; mutations inside its grids only redraw shared views/weight. Successful same-slot no-op emits no mutation and preserves windows.
+
+Actions use runtime capabilities and live access/ownership checks. A menu descriptor is a snapshot for display only; execution resolves again. Inspection presents base stats, not an invented final gunplay result. Split remains within the source grid and uses actual current count; context lifecycle closes on changes/drag/transactions/window close. Future busy checks and unload/reload IDs are interfaces only.

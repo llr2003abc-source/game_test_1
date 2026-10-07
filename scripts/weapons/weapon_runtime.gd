@@ -148,3 +148,12 @@ func finish_reload() -> WeaponReloadResult:
 	reload_finished.emit(result)
 	state_changed.emit()
 	return result
+
+func cancel_reload() -> bool:
+	if state!=State.RELOADING: return false
+	_reload_magazine=null
+	reload_remaining=0.0
+	reload_type=ReloadType.NONE
+	state=State.READY if chambered_round!=null else State.EMPTY
+	state_changed.emit()
+	return true

@@ -30,6 +30,11 @@ func _draw() -> void:
 		for i in range(lines.size()): draw_string(get_theme_default_font(),rect.position+Vector2(4,13+i*13),lines[i],HORIZONTAL_ALIGNMENT_LEFT,rect.size.x-8,10,Color(1,1,1,alpha))
 
 func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index==MOUSE_BUTTON_RIGHT:
+		var placement: Dictionary=layout.get_at_cell(Vector2i(event.position/screen.cell_size))
+		screen.show_item_context(placement.get("item"),get_global_transform()*event.position)
+		accept_event()
+		return
 	if event is InputEventMouseButton and event.pressed and event.button_index==MOUSE_BUTTON_LEFT:
 		var placement: Dictionary=layout.get_at_cell(Vector2i(event.position/screen.cell_size))
 		_pressed_item=placement.get("item")
@@ -37,6 +42,7 @@ func _gui_input(event: InputEvent) -> void:
 		_pressed_cell=placement.get("position",Vector2i(-1,-1))
 		screen.selected_item=_pressed_item
 		screen.show_selection()
+		if event.double_click and _pressed_item!=null: screen.open_portable_container(_pressed_item)
 
 func _get_drag_data(at_position: Vector2) -> Variant:
 	var placement: Dictionary=layout.get_at_cell(Vector2i(_press_position/screen.cell_size)) if _pressed_item!=null else layout.get_at_cell(Vector2i(at_position/screen.cell_size))

@@ -6,7 +6,7 @@ static func transfer(access: LootContainerAccess, item: InventoryItemInstance, d
 	var source:=item.get_owner_registry()
 	if source==null or destination==null or not access.permits(source,destination): return false
 	var original:=source.get_location(item)
-	if original.kind not in [&"grid",&"container",&"equipment"]: return false
+	if original.kind not in [&"grid",&"container",&"equipment"] and not (original.kind==&"transit" and source.is_reserved(item)): return false
 	if source==destination and location.get("kind")==&"equipment": return source.equip(item,location.get("slot",-1))
 	if not destination._valid_pickup_destination(item,location,true): return false
 	if source==destination:
@@ -25,13 +25,17 @@ static func transfer(access: LootContainerAccess, item: InventoryItemInstance, d
 	source.locked=true
 	destination.locked=true
 	source._clear_location(item,original)
-	for member in group: source._release_registration(member)
+	for member in group: source._release_for_transfer(member)
 	for grid in contents:
 		source.grids.erase(grid)
 		destination.grids.append(grid)
 		grid.set_transactions(destination)
 	destination._commit_registration(group)
 	destination._commit_pickup_destination(item,location)
+	if source.is_reserved(item):
+		var reservation: InventoryReservation=source.reservations[item]
+		source.reservations.erase(item)
+		reservation.phase=InventoryReservation.Phase.COMMITTED
 	source.changed.emit()
 	destination.changed.emit()
 	source.locked=false

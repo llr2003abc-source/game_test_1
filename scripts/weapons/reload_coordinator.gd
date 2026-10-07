@@ -63,14 +63,21 @@ func request_reload(requested: WeaponRuntime.ReloadType = WeaponRuntime.ReloadTy
 	var duration: float = ReloadTimingProvider.get_base_duration(runtime.weapon_data,replacement.runtime_state.definition,runtime.chambered_round==null) * (drop_time_multiplier if type==WeaponRuntime.ReloadType.DROP else tactical_time_multiplier)
 	if executor != null and executor.injury_component != null: duration *= executor.injury_component.get_reload_multiplier()
 	context = {"weapon":weapon,"runtime":runtime,"old":old,"replacement":replacement,"source":source,"origin":origin,"target":target,"cell":cell,"type":type}
+	context["incoming_reservation"]=inventory.transactions.reserve_item(replacement)
+	context["outgoing_reservation"]=inventory.transactions.reserve_item(old,false) if old!=null else null
+	if context.incoming_reservation==null or (old!=null and context.outgoing_reservation==null):
+		if context.incoming_reservation!=null: inventory.transactions.cancel_reservation(context.incoming_reservation)
+		context.clear()
+		return false
 	inventory.transactions.locked = true
 	runtime.reload_finished.connect(_complete)
 	if not runtime.begin_reload(replacement.runtime_state,duration,type):
 		runtime.reload_finished.disconnect(_complete)
 		inventory.transactions.locked = false
+		inventory.transactions.cancel_reservation(context.incoming_reservation)
+		if context.outgoing_reservation!=null: inventory.transactions.cancel_reservation(context.outgoing_reservation)
 		context.clear()
 		return false
-	source._commit_remove(replacement)
 	inventory._on_inventory_changed()
 	return true
 
@@ -85,6 +92,20 @@ func _complete(result: WeaponReloadResult) -> void:
 		else:
 			inventory.transactions.world_items[old] = null
 			magazine_dropped.emit(old)
+		inventory.transactions.finish_reservation(context.outgoing_reservation)
+	inventory.transactions.finish_reservation(context.incoming_reservation)
 	context.clear()
 	inventory.transactions.locked = false
 	inventory._on_inventory_changed()
+
+func cancel_reload() -> bool:
+	if context.is_empty(): return false
+	var runtime: WeaponRuntime=context.runtime
+	if not inventory.transactions.cancel_reservation(context.incoming_reservation): return false
+	if context.outgoing_reservation!=null: inventory.transactions.cancel_reservation(context.outgoing_reservation)
+	runtime.reload_finished.disconnect(_complete)
+	runtime.cancel_reload()
+	context.clear()
+	inventory.transactions.locked=false
+	inventory._on_inventory_changed()
+	return true

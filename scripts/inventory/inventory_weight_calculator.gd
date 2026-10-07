@@ -20,7 +20,7 @@ static func get_registry_total_weight(registry: InventoryTransactionService) -> 
 	for item in registry.items:
 		var location: Dictionary=registry.get_location(item)
 		if registry.get_direct_parent(item).parent_item==null: all_roots.append(item)
-		if location.kind==&"equipment" or (location.get("grid")!=null and location.grid.get_owner_item()==null): roots.append(item)
+		if location.kind==&"equipment" or (location.get("grid")!=null and location.grid.get_owner_item()==null) or (location.kind==&"transit" and registry.is_reserved(item)): roots.append(item)
 	var whole_registry: Dictionary=InventoryOwnershipGraph.collect_roots(all_roots,registry)
 	if not whole_registry.valid: return _invalid(whole_registry.reason)
 	if whole_registry.items.size()!=registry.items.size(): return _invalid(&"ORPHAN_OR_CYCLE")

@@ -32,7 +32,10 @@ var player: Node
 var inventory: PlayerInventoryComponent
 var views: Array[InventoryGridView] = []
 var equipment_views: Dictionary = {}
-var selected_item: InventoryItemInstance
+var selected_item: InventoryItemInstance:
+	set(value):
+		selected_item=value
+		if is_instance_valid(split_amount): split_amount.max_value=maxi(1,value.stack_count-1) if value!=null else 1
 var drag_data: Dictionary = {}
 var drag_preview: InventoryDragGhost
 var drag_context: InventoryDragContext
@@ -46,6 +49,12 @@ var _pending_refresh: bool = false
 var _committing_drag: bool = false
 var _drag_pointer: Vector2
 var _has_drag_pointer: bool = false
+var portable_windows: PortableWindowManager
+var busy_query: Callable
+var item_context: ItemContextMenu
+var action_executor: ItemActionExecutor
+var split_dialog: AmmoSplitDialog
+var inspection_dialog: AcceptDialog
 
 func _ready() -> void:
 	player = get_parent()
@@ -71,6 +80,11 @@ func _ready() -> void:
 	add_child(placement_preview)
 	placement_preview.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	player.get_node("PlayerInteractor").manage_requested.connect(open_vicinity)
+	portable_windows=PortableWindowManager.new(self)
+	action_executor=ItemActionExecutor.new(self)
+	item_context=ItemContextMenu.new()
+	item_context.configure(self)
+	add_child(item_context)
 
 func toggle() -> void:
 	close_container()
@@ -110,6 +124,9 @@ func open_container(target: Node3D) -> bool:
 	return true
 
 func close_container() -> void:
+	close_item_context(true)
+	if is_instance_valid(inspection_dialog): inspection_dialog.hide()
+	if portable_windows!=null: portable_windows.close_all()
 	if container_access!=null:
 		if container_access.runtime.changed.is_connected(_on_changed): container_access.runtime.changed.disconnect(_on_changed)
 		container_access.close()
@@ -161,6 +178,9 @@ func _input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("inventory_toggle") and not _toggle_handled: toggle()
 	_toggle_handled = false
+	if visible and portable_windows!=null: portable_windows.validate_windows()
+	if item_context!=null: item_context.validate_context()
+	if split_dialog!=null and not split_dialog.is_context_valid(): split_dialog.close_dialog()
 	if visible and mode==Mode.CONTAINER_LOOT and (container_access==null or not container_access.is_valid()):
 		toggle()
 		return
@@ -176,6 +196,8 @@ func _process(delta: float) -> void:
 
 func _on_changed() -> void:
 	if not visible or not is_inside_tree(): return
+	close_item_context()
+	if portable_windows!=null: portable_windows.validate_windows()
 	if drag_context!=null and _committing_drag:
 		_pending_refresh = true
 		return
@@ -304,7 +326,7 @@ func refresh() -> void:
 	actions.add_child(label("Drag items • R rotate • Split ammo:"))
 	split_amount = SpinBox.new()
 	split_amount.min_value = 1
-	split_amount.max_value = 59
+	split_amount.max_value = maxi(1,selected_item.stack_count-1) if selected_item!=null else 1
 	split_amount.value = 20
 	actions.add_child(split_amount)
 	var split := Button.new()
@@ -338,8 +360,9 @@ func show_selection() -> void:
 	if status != null: status.text = describe_item(selected_item).replace("\n"," | ") if selected_item!=null else "Ready"
 
 func begin_drag(item: InventoryItemInstance, grab_offset: Vector2 = Vector2.ZERO) -> Dictionary:
+	close_item_context(true)
 	finish_drag()
-	if transactions_locked() or item.get_owner_registry()==null: return {}
+	if transactions_locked() or item.get_owner_registry()==null or is_item_busy(item) or not can_access_item(item): return {}
 	var source: Dictionary = item.get_owner_registry().get_location(item)
 	var grid: InventoryGrid = source.get("grid")
 	var cell: Vector2i = grid.get_placement(item).position if grid!=null else Vector2i(-1,-1)
@@ -376,6 +399,8 @@ func finish_drag() -> void:
 
 func _redraw_source() -> void:
 	for view in views: view.queue_redraw()
+	if portable_windows!=null:
+		for view in portable_windows.get_views(): view.queue_redraw()
 	if is_instance_valid(nearby_panel): nearby_panel.queue_redraw()
 	for slot in equipment_views:
 		var dragging: bool = drag_context!=null and inventory.equipment.slots[slot]==drag_context.item
@@ -386,26 +411,27 @@ func update_drag_candidate(mouse_position: Vector2, data: Dictionary = {}) -> Di
 	_drag_pointer = mouse_position
 	_has_drag_pointer = true
 	var candidate: Dictionary = {"kind":&"none","valid":false}
+	var covering_window: PortableContainerWindow=portable_windows.window_at(mouse_position)
 	# Only control rectangles are scanned. Placement searches remain local3x3.
-	for view in views:
-		if view.get_global_rect().has_point(mouse_position):
+	for view in portable_windows.get_views(mouse_position):
+		if view.get_interaction_rect().has_point(mouse_position):
 			candidate = _resolve_grid_view(view,mouse_position)
 			break
-	if candidate.kind==&"none":
+	if candidate.kind==&"none" and covering_window==null:
 		for slot in equipment_views:
 			if equipment_views[slot].get_global_rect().has_point(mouse_position):
 				candidate = InventoryDragCandidateResolver.resolve_equipment(drag_context,inventory.equipment,slot,transactions_locked())
 				candidate.preview_rect = equipment_views[slot].get_global_rect()
 				candidate.footprint_size = Vector2i.ONE
 				break
-	if candidate.kind==&"none":
+	if candidate.kind==&"none" and covering_window==null:
 		if vicinity_mode and is_instance_valid(nearby_scroll) and nearby_scroll.get_global_rect().has_point(mouse_position):
 			candidate={"kind":&"world_drop","valid":not inventory.transactions.locked and not drag_data.has("world"),"snapped":false}
 	if candidate.kind==&"none":
 		var ideal: Vector2 = drag_context.get_ghost_top_left(mouse_position)
 		var best_distance: float = INF
-		for view in views:
-			if not view.get_global_rect().grow(snap_radius_pixels).has_point(ideal): continue
+		for view in portable_windows.get_views(mouse_position):
+			if not view.get_interaction_rect().grow(snap_radius_pixels).has_point(ideal): continue
 			var near: Dictionary = _resolve_grid_view(view,mouse_position)
 			if candidate.kind==&"none": candidate = near
 			if near.valid and near.snap_distance<best_distance:
@@ -424,12 +450,13 @@ func _resolve_grid_view(view: InventoryGridView, mouse_position: Vector2) -> Dic
 	var footprint: Vector2i = candidate.target_item.get_size() if candidate.target_item!=null else drag_context.get_preview_size()
 	candidate.footprint_size = footprint
 	candidate.preview_rect = Rect2(origin+Vector2(candidate.position)*cell_size,Vector2(footprint)*cell_size)
-	candidate.grid_rect = view.get_global_rect()
+	candidate.grid_rect = view.get_interaction_rect()
 	return candidate
 
 func commit_drag_candidate(data: Dictionary) -> bool:
 	if drag_context==null or data.get("item")!=drag_context.item or not drag_context.candidate.get("valid",false): return false
 	if transactions_locked() or not _source_unchanged(): return false
+	if not can_access_item(drag_context.item) or is_item_busy(drag_context.item): return false
 	if data.has("world") and not is_vicinity_item(data.item): return false
 	var candidate: Dictionary = drag_context.candidate
 	if candidate.kind in [&"load",&"stack"]:
@@ -496,4 +523,90 @@ func drop_on_equipment(data: Dictionary, slot: int) -> bool:
 	return data.has("item") and inventory.transactions.equip(data.item,slot)
 
 func _split_selected() -> void:
-	if selected_item==null or transactions_locked() or selected_item.get_owner_registry()==null or selected_item.get_owner_registry().split_stack(selected_item,int(split_amount.value))==null: status.text="Split unavailable: check ammo, quantity and space"
+	if action_executor.execute(ItemActionDescriptor.SPLIT,selected_item,{"amount":int(split_amount.value)})==null: status.text="Split unavailable: check ammo, quantity and space"
+
+func open_portable_container(item: InventoryItemInstance, parent_window: PortableContainerWindow=null) -> PortableContainerWindow:
+	return portable_windows.open_container(item,parent_window)
+
+func on_portable_window_closing(item: InventoryItemInstance) -> void:
+	close_item_context(true)
+	if drag_context==null: return
+	var affected: bool=item.get_storage_grids().has(drag_context.candidate.get("grid"))
+	for location in item_location_signature(drag_context.item):
+		if location[0]==item: affected=true
+	if affected:
+		if get_viewport().gui_is_dragging(): get_viewport().gui_cancel_drag()
+		finish_drag()
+
+func item_location_signature(item: InventoryItemInstance) -> Array:
+	var result: Array=[]
+	var seen: Array=[]
+	while item!=null:
+		if seen.has(item): return []
+		seen.append(item)
+		var registry:=item.get_owner_registry()
+		if registry==null: return []
+		var location: Dictionary=registry.get_direct_parent(item)
+		var placement: InventoryPlacement=location.get("placement")
+		result.append([item,registry,location.kind,location.parent_item,location.get("grid"),placement.position if placement!=null else Vector2i(-1,-1),location.get("slot",-1),location.get("node"),item.rotated])
+		item=location.parent_item
+	return result
+
+func can_access_item(item: InventoryItemInstance) -> bool:
+	if not visible or item==null: return false
+	var registry:=item.get_owner_registry()
+	if registry==null or not registry.items.has(item): return false
+	if registry!=inventory.transactions and (mode!=Mode.CONTAINER_LOOT or container_access==null or not container_access.can_view() or registry!=container_access.runtime.transactions): return false
+	var signature: Array=item_location_signature(item)
+	if signature.is_empty(): return false
+	var ancestor: InventoryItemInstance=signature.back()[0]
+	var location: Dictionary=registry.get_location(ancestor)
+	if location.kind==&"world": return is_vicinity_item(ancestor)
+	return location.kind in [&"grid",&"container",&"equipment"]
+
+func is_item_busy(item: InventoryItemInstance) -> bool:
+	if item==null or (busy_query.is_valid() and busy_query.call(item)): return true
+	var registry:=item.get_owner_registry()
+	if registry==null: return true
+	if registry.locked: return true
+	for member in item_location_signature(item):
+		if registry.is_reserved(member[0]): return true
+	return false
+
+func action_signature(item: InventoryItemInstance) -> Array:
+	if item==null: return []
+	var result: Array=[item.stack_count,item.rotated,item.runtime_state.get_instance_id() if item.runtime_state!=null else 0]
+	for location in item_location_signature(item):
+		var row: Array=[]
+		for value in location: row.append(value.get_instance_id() if value is Object else value)
+		result.append(row)
+	return result
+
+func close_item_context(close_split: bool=false) -> void:
+	if item_context!=null: item_context.close_menu()
+	if close_split and split_dialog!=null: split_dialog.close_dialog()
+
+func show_item_context(item: InventoryItemInstance, pointer: Vector2, parent_window: PortableContainerWindow=null) -> void:
+	close_item_context(true)
+	item_context.open_for(item,pointer,parent_window)
+
+func open_split_dialog(item: InventoryItemInstance) -> AmmoSplitDialog:
+	var allowed: bool=false
+	for action in ItemActionResolver.resolve(item,self):
+		if action.id==ItemActionDescriptor.SPLIT and action.enabled: allowed=true
+	if not allowed: return null
+	close_item_context(true)
+	split_dialog=AmmoSplitDialog.new()
+	split_dialog.configure(item,self)
+	add_child(split_dialog)
+	return split_dialog
+
+func show_inspection(details: Dictionary) -> void:
+	if not is_instance_valid(inspection_dialog):
+		inspection_dialog=AcceptDialog.new()
+		add_child(inspection_dialog)
+	inspection_dialog.title="Inspect — "+details.name
+	var lines: PackedStringArray=[]
+	for key in details: lines.append(String(key).replace("_"," ").capitalize()+": "+str(details[key]))
+	inspection_dialog.dialog_text="\n".join(lines)
+	inspection_dialog.popup_centered(Vector2i(480,500))

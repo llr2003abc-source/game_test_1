@@ -7,6 +7,7 @@ var grids: Array[InventoryGrid] = []
 var items: Array[InventoryItemInstance] = []
 var runtime_registry: Dictionary = {}
 var world_items: Dictionary = {}
+var reservations: Dictionary = {}
 var inventory: Node
 var locked: bool = false
 var _external_owner: WeakRef
@@ -73,7 +74,7 @@ func _commit_complete_subtree(graph: Dictionary) -> void:
 		grid.set_transactions(self)
 
 func place_complete_subtree(item: InventoryItemInstance, grid: InventoryGrid, position: Vector2i, rotation: bool=false) -> bool:
-	if locked or not grids.has(grid) or get_location(item).kind not in [&"transit",&"unregistered"] or not grid.can_place(item,position,rotation): return false
+	if locked or is_reserved(item) or not grids.has(grid) or get_location(item).kind not in [&"transit",&"unregistered"] or not grid.can_place(item,position,rotation): return false
 	if not register_complete_subtree(item): return false
 	grid._commit_place(item,position,rotation)
 	changed.emit()
@@ -130,7 +131,7 @@ func owns_world_item(item: InventoryItemInstance, node: Node) -> bool:
 	return items.has(item) and world_items.get(item)==node and is_instance_valid(node) and get_location(item).kind==&"world"
 
 func drop_item_to_world(item: InventoryItemInstance, parent: Node3D, world_transform: Transform3D) -> DroppedItem:
-	if locked or not items.has(item) or not is_instance_valid(parent) or parent.is_queued_for_deletion(): return null
+	if locked or is_reserved(item) or not items.has(item) or not is_instance_valid(parent) or parent.is_queued_for_deletion(): return null
 	var source: Dictionary=get_location(item)
 	if source.kind not in [&"grid",&"equipment",&"transit"] or not register_complete_subtree(item): return null
 	var node: DroppedItem=WorldItemFactory._prepare(item,self)
@@ -221,7 +222,7 @@ func get_location(item: InventoryItemInstance) -> Dictionary:
 			if edge.get("grid")==null and edge.child_item==item:
 				return {"kind":edge.edge_role,"weapon":owner_item,"parent_item":owner_item}
 	if world_items.has(item): return {"kind":&"world", "node":world_items[item]}
-	return {"kind":&"transit"} if items.has(item) else {"kind":&"unregistered"}
+	return {"kind":&"transit","reservation":reservations.get(item)} if items.has(item) else {"kind":&"unregistered"}
 
 func get_location_count(item: InventoryItemInstance) -> int:
 	var count: int=0
@@ -235,6 +236,7 @@ func get_location_count(item: InventoryItemInstance) -> int:
 		for edge in parent.get_owned_child_edges(self):
 			if edge.get("grid")==null and edge.child_item==item: count+=1
 	if world_items.has(item): count+=1
+	if count==0 and reservations.has(item): count=1
 	return count
 
 func get_direct_parent(item: InventoryItemInstance) -> Dictionary:
@@ -242,6 +244,7 @@ func get_direct_parent(item: InventoryItemInstance) -> Dictionary:
 	location["registry"]=self
 	location["parent_item"]=null
 	location["edge_role"]=location.kind
+	if location.kind==&"transit" and reservations.has(item): location["edge_role"]=&"reservation"
 	if location.kind in [&"grid",&"container"]:
 		location["parent_item"]=location.grid.get_owner_item()
 		location["placement"]=location.grid.get_placement(item)
@@ -260,7 +263,7 @@ func place(item: InventoryItemInstance, grid: InventoryGrid, position: Vector2i,
 	return move(item,grid,position,rotation)
 
 func move(item: InventoryItemInstance, grid: InventoryGrid, position: Vector2i, rotation: bool = false) -> bool:
-	if locked or not grids.has(grid) or not grid.can_place(item,position,rotation): return false
+	if locked or is_reserved(item) or not grids.has(grid) or not grid.can_place(item,position,rotation): return false
 	var source: Dictionary = get_location(item)
 	if source.kind in [&"weapon_magazine",&"world"]: return false
 	if not register_complete_subtree(item): return false
@@ -271,7 +274,7 @@ func move(item: InventoryItemInstance, grid: InventoryGrid, position: Vector2i, 
 
 func remove(item: InventoryItemInstance) -> bool:
 	var source: Dictionary = get_location(item)
-	if locked or source.kind not in [&"grid",&"container",&"equipment"]: return false
+	if locked or is_reserved(item) or source.kind not in [&"grid",&"container",&"equipment"]: return false
 	_clear_location(item,source)
 	changed.emit()
 	return true
@@ -282,7 +285,7 @@ func rotate(item: InventoryItemInstance) -> bool:
 	return move(item,source.grid,source.grid.get_placement(item).position,not item.rotated)
 
 func equip(item: InventoryItemInstance, slot: int) -> bool:
-	if locked or inventory == null or not inventory.equipment.can_equip(item,slot): return false
+	if locked or is_reserved(item) or inventory == null or not inventory.equipment.can_equip(item,slot): return false
 	var source: Dictionary = get_location(item)
 	var current: InventoryItemInstance = inventory.equipment.slots[slot]
 	if current == item: return item.get_owner_registry()==self and items.has(item) and source.kind==&"equipment" and source.slot==slot
@@ -295,7 +298,7 @@ func equip(item: InventoryItemInstance, slot: int) -> bool:
 	return true
 
 func merge_stacks(source: InventoryItemInstance, target: InventoryItemInstance) -> int:
-	if locked or source == target or not items.has(source) or not items.has(target): return 0
+	if locked or is_reserved(source) or is_reserved(target) or source == target or not items.has(source) or not items.has(target): return 0
 	var amount: int=_merge_amount(source,target)
 	if amount<=0: return 0
 	_commit_merge(source,target,amount)
@@ -313,23 +316,36 @@ func _commit_merge(source: InventoryItemInstance, target: InventoryItemInstance,
 	if source.stack_count == 0: _consume_item(source)
 
 func split_stack(source: InventoryItemInstance, amount: int, destination: InventoryGrid = null) -> InventoryItemInstance:
-	if locked or not items.has(source) or source.definition.category != ItemDefinition.Category.AMMO or amount <= 0 or amount >= source.stack_count: return null
+	if locked or is_reserved(source) or not items.has(source) or source.definition.category != ItemDefinition.Category.AMMO or amount <= 0 or amount >= source.stack_count: return null
 	var location: Dictionary = get_location(source)
 	if destination == null:
 		if location.kind not in [&"grid",&"container"]: return null
 		destination = location.grid
-	if not grids.has(destination): return null
+	if location.kind not in [&"grid",&"container"] or destination!=location.grid or not grids.has(destination): return null
 	var split := InventoryItemInstance.new(source.definition,amount)
 	var cell: Vector2i = destination.find_first_free_position(split)
 	if cell.x < 0: return null
+	if not _can_register([split]) or not validate_complete_subtree(source).valid: return null
+	var reservation:=reserve_item(source)
+	if reservation==null: return null
+	var split_reservation:=InventoryReservation.new(split,{"kind":&"grid","grid":destination,"position":cell},self)
+	reservations[split]=split_reservation
+	locked=true
 	source.stack_count -= amount
-	register_item(split)
+	_commit_registration([split])
 	destination._commit_place(split,cell,false)
+	finish_reservation(split_reservation)
+	var origin: Dictionary=reservation.origin.duplicate()
+	origin.kind=&"grid"
+	origin["rotated"]=reservation.rotation
+	_commit_pickup_destination(source,origin)
+	finish_reservation(reservation)
 	changed.emit()
+	locked=false
 	return split
 
 func load_ammo_into_magazine(ammo: InventoryItemInstance, magazine: InventoryItemInstance, requested_amount: int) -> int:
-	if locked or requested_amount <= 0 or not items.has(ammo) or not items.has(magazine): return 0
+	if locked or is_reserved(ammo) or is_reserved(magazine) or requested_amount <= 0 or not items.has(ammo) or not items.has(magazine): return 0
 	var amount: int=_load_amount(ammo,magazine,requested_amount)
 	if amount<=0: return 0
 	_commit_load(ammo,magazine,amount)
@@ -366,3 +382,61 @@ func _release_registration(item: InventoryItemInstance) -> void:
 		var identity: int=item.runtime_state.get_instance_id()
 		runtime_registry.erase(identity)
 		_runtime_owner_registries.erase(identity)
+
+func is_reserved(item: InventoryItemInstance) -> bool:
+	return reservations.has(item)
+
+func reserve_item(item: InventoryItemInstance, detach: bool=true) -> InventoryReservation:
+	if locked or not items.has(item) or is_reserved(item) or not validate_complete_subtree(item).valid: return null
+	var location: Dictionary=get_location(item)
+	if location.kind not in [&"grid",&"container",&"equipment",&"weapon_magazine"]: return null
+	var reservation:=InventoryReservation.new(item,location,self)
+	reservations[item]=reservation
+	if detach:
+		if location.kind==&"weapon_magazine": location.weapon.runtime_state.loaded_magazine=null
+		else: _clear_location(item,location)
+	return reservation
+
+func finish_reservation(reservation: InventoryReservation) -> bool:
+	if not _owns_reservation(reservation) or get_location(reservation.item).kind==&"transit": return false
+	reservations.erase(reservation.item)
+	reservation.phase=InventoryReservation.Phase.COMMITTED
+	return true
+
+func _owns_reservation(reservation: InventoryReservation) -> bool:
+	return reservation!=null and reservation.get_registry()==self and reservations.get(reservation.item)==reservation and reservation.phase==InventoryReservation.Phase.RESERVED
+
+func commit_reservation(reservation: InventoryReservation, destination: Dictionary) -> bool:
+	if not _owns_reservation(reservation) or get_location(reservation.item).kind!=&"transit": return false
+	if not _valid_pickup_destination(reservation.item,destination,true): return false
+	reservation.phase=InventoryReservation.Phase.COMMITTING
+	_commit_pickup_destination(reservation.item,destination)
+	reservations.erase(reservation.item)
+	reservation.phase=InventoryReservation.Phase.COMMITTED
+	changed.emit()
+	return true
+
+func cancel_reservation(reservation: InventoryReservation) -> bool:
+	if not _owns_reservation(reservation): return false
+	var location: Dictionary=get_location(reservation.item)
+	if location.kind==&"transit":
+		var origin: Dictionary=reservation.origin
+		if origin.kind==&"weapon_magazine":
+			if origin.weapon.runtime_state.loaded_magazine!=null: return false
+			origin.weapon.runtime_state.loaded_magazine=reservation.item.runtime_state
+		else:
+			var destination: Dictionary=origin.duplicate()
+			if origin.kind==&"container": destination.kind=&"grid"
+			destination["rotated"]=reservation.rotation
+			if not _valid_pickup_destination(reservation.item,destination,true): return false
+			_commit_pickup_destination(reservation.item,destination)
+	reservations.erase(reservation.item)
+	reservation.phase=InventoryReservation.Phase.CANCELLED
+	changed.emit()
+	return true
+
+func _release_for_transfer(item: InventoryItemInstance) -> void:
+	# The destination atomically replaces the owner reference; it is never cleared.
+	items.erase(item)
+	if item.runtime_state!=null:
+		runtime_registry.erase(item.runtime_state.get_instance_id())
