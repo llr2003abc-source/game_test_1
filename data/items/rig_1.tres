@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="ItemDefinition" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="ItemDefinition" load_steps=4 format=3]
 [ext_resource type="Script" path="res://scripts/inventory/item_definition.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/items/rig_1_visual.tscn" id="visual"]
+[ext_resource type="Resource" path="res://data/containers/rig_1_layout.tres" id="layout"]
 
 [resource]
 script = ExtResource("1")
@@ -9,3 +10,4 @@ display_name = "Rig 1"
 category = 7
 grid_size = Vector2i(2,2)
 visual_scene = ExtResource("visual")
+container_data = ExtResource("layout")

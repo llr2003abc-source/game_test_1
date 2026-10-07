@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="ReloadAnimationProfile" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/weapons/reload_animation_profile.gd" id="1"]
+[resource]
+script = ExtResource("1")
+definition_id = &"test_rifle_reload"
+weapon_animation_family = &"test_rifle"
+magazine_animation_family = &"test_30rd"
+fallback_tactical_duration = 2.0
+fallback_empty_duration = 2.0

@@ -16,8 +16,12 @@ static func create(definition: ItemDefinition, count: int = 1, magazine_rounds: 
 			runtime = WeaponRuntime.new()
 			runtime.initialize(definition.weapon_data,initial_magazine)
 			runtime.chamber_next_round()
-		ItemDefinition.Category.RIG: runtime = RigContainerRuntime.new()
-		ItemDefinition.Category.BACKPACK: runtime = BackpackContainerRuntime.new()
+		ItemDefinition.Category.RIG:
+			if definition.container_data==null or not definition.container_data.is_valid(): return null
+			runtime = RigContainerRuntime.new(definition.container_data)
+		ItemDefinition.Category.BACKPACK:
+			if definition.container_data==null or not definition.container_data.is_valid() or definition.container_data.grid_sizes.size()!=1: return null
+			runtime = BackpackContainerRuntime.new(definition.container_data)
 	var magazine: MagazineInstance=runtime as MagazineInstance
 	if runtime is WeaponRuntime: magazine=runtime.loaded_magazine
 	if magazine!=null and magazine_rounds>=0:

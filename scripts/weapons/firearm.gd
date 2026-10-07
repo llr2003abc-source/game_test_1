@@ -154,7 +154,7 @@ func request_reload(type: WeaponRuntime.ReloadType = WeaponRuntime.ReloadType.TA
 			print("Reloading...")
 		return
 	var replacement: MagazineInstance = select_reload_magazine()
-	var duration: float = weapon_data.reload_time * (injury_component.get_reload_multiplier() if injury_component != null else 1.0)
+	var duration: float = ReloadTimingProvider.get_base_duration(weapon_data,replacement.definition if replacement!=null else null,chambered_round==null) * (injury_component.get_reload_multiplier() if injury_component != null else 1.0)
 	if not weapon_runtime.begin_reload(replacement, duration):
 		return
 	_trigger_pressed = false

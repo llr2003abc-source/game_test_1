@@ -60,7 +60,7 @@ func request_reload(requested: WeaponRuntime.ReloadType = WeaponRuntime.ReloadTy
 	if old != null and requested==WeaponRuntime.ReloadType.TACTICAL and target==null: type=WeaponRuntime.ReloadType.DROP
 	var source: InventoryGrid = inventory.transactions.get_location(replacement).grid
 	var origin: Vector2i = source.get_placement(replacement).position
-	var duration: float = runtime.weapon_data.reload_time * (drop_time_multiplier if type==WeaponRuntime.ReloadType.DROP else tactical_time_multiplier)
+	var duration: float = ReloadTimingProvider.get_base_duration(runtime.weapon_data,replacement.runtime_state.definition,runtime.chambered_round==null) * (drop_time_multiplier if type==WeaponRuntime.ReloadType.DROP else tactical_time_multiplier)
 	if executor != null and executor.injury_component != null: duration *= executor.injury_component.get_reload_multiplier()
 	context = {"weapon":weapon,"runtime":runtime,"old":old,"replacement":replacement,"source":source,"origin":origin,"target":target,"cell":cell,"type":type}
 	inventory.transactions.locked = true

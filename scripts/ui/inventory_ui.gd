@@ -289,7 +289,7 @@ func refresh() -> void:
 	elif mode==Mode.CONTAINER_LOOT and container_access!=null:
 		var container_column:=VBoxContainer.new()
 		layout.add_child(container_column)
-		container_column.add_child(label(container_access.runtime.display_name+" — 8 × 6"))
+		container_column.add_child(label("%s — %d × %d"%[container_access.runtime.display_name,container_access.runtime.grid_size.x,container_access.runtime.grid_size.y]))
 		add_grid(container_column,container_access.runtime.inventory_grid)
 	var actions := HBoxContainer.new()
 	content.add_child(actions)

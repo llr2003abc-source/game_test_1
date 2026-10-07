@@ -19,8 +19,8 @@ func initialize_loadout() -> void:
 	var runtime: WeaponRuntime = firearm.weapon_runtime if firearm != null else null
 	# Construct the aggregate before publishing an active binding.
 	firearm = null
-	var rig := InventoryItemInstance.new(load("res://data/items/rig_1.tres"),1,RigContainerRuntime.new())
-	var backpack := InventoryItemInstance.new(load("res://data/items/backpack_1.tres"),1,BackpackContainerRuntime.new())
+	var rig := InventoryItemFactory.create(load("res://data/items/rig_1.tres"))
+	var backpack := InventoryItemFactory.create(load("res://data/items/backpack_1.tres"))
 	transactions.equip(rig,EquipmentComponent.Slot.RIG)
 	transactions.equip(backpack,EquipmentComponent.Slot.BACKPACK)
 	var weapon_definition: ItemDefinition = load("res://data/items/primary_weapon_1_item.tres")

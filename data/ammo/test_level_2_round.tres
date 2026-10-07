@@ -4,6 +4,8 @@
 
 [resource]
 script = ExtResource("1_ammo")
+definition_id = &"test_level_2_round"
+ammo_type_id = &"weapon1_ammo"
 ammo_name = "Test Level 2 Round"
 bullet_level = 2
 flesh_damage = 40.0

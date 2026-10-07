@@ -74,8 +74,7 @@ func _registration_group(item: InventoryItemInstance) -> Array[InventoryItemInst
 func _contents_grids(item: InventoryItemInstance) -> Array[InventoryGrid]:
 	var contents: Array[InventoryGrid] = []
 	if item == null: return contents
-	if item.runtime_state is RigContainerRuntime: contents = item.runtime_state.grids
-	elif item.runtime_state is BackpackContainerRuntime: contents.append(item.runtime_state.grid)
+	if item.runtime_state!=null and item.runtime_state.has_method("get_storage_grids"): contents = item.runtime_state.get_storage_grids()
 	return contents
 
 func _can_adopt_grid(grid: InventoryGrid) -> bool:

@@ -14,6 +14,15 @@ enum Category { GENERIC, AMMO, MAGAZINE, PRIMARY_WEAPON, SECONDARY_WEAPON, PISTO
 @export var weapon_data: WeaponData
 @export var magazine_item_definition: ItemDefinition
 @export var visual_scene: PackedScene
+@export var container_data: PortableContainerData
+
+func has_capability(capability: StringName) -> bool:
+	match capability:
+		&"weapon": return category in [Category.PRIMARY_WEAPON,Category.SECONDARY_WEAPON,Category.PISTOL]
+		&"magazine": return category==Category.MAGAZINE
+		&"ammo_stack": return category==Category.AMMO
+		&"portable_container": return category in [Category.RIG,Category.BACKPACK]
+	return false
 
 func is_valid() -> bool:
 	return grid_size.x >= 1 and grid_size.y >= 1 and max_stack >= 1

@@ -1,11 +1,17 @@
-[gd_resource type="Resource" script_class="WeaponData" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="WeaponData" load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1_data"]
 [ext_resource type="Resource" path="res://data/magazines/test_30rd_magazine.tres" id="2_magazine"]
+[ext_resource type="Resource" path="res://data/weapons/test_rifle_reload_profile.tres" id="profile"]
 
 [resource]
 script = ExtResource("1_data")
 weapon_name = "Test Rifle"
+definition_id = &"test_rifle"
+weapon_category = &"rifle"
+compatible_magazine_type_ids = Array[StringName]([&"magazine_1"])
+animation_family = &"test_rifle"
+reload_profiles = [ExtResource("profile")]
 magazine_data = ExtResource("2_magazine")
 fire_mode = 1
 fire_model = 1

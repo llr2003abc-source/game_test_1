@@ -4,6 +4,7 @@
 
 [resource]
 script = ExtResource("1_armor")
+definition_id = &"test_level_1_armor"
 armor_name = "Test Level 1 Armor"
 armor_level = 1
 max_durability = 100.0

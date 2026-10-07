@@ -1,0 +1,12 @@
+# Phase 11.1B-0 design
+
+用户提供的完整 B0 附件是实施规格，当前设计是其最小实现映射。目标：新增同类枪械/弹药/弹匣/便携容器只需配置 Resource，不修改核心 Gameplay；现有 2993 项、数值、ownership 和 no-op 保持。
+
+1. Definition/Runtime 分离不变。ItemDefinition 保留 `item_id` 作为稳定 ID、weight/footprint/visual/专门 Resource 引用；新增 `container_data` 和由 category 推导的 `has_capability()`，不复制战斗参数。Weapon/Ammo/Magazine 各增加稳定 definition_id 和专属 weight/animation 元数据；通用兼容标签默认空，Demo 数据显式保存现有标签。Weapon 保留 fire_mode 作为默认，支持模式列表属于静态定义，当前选择属于 Runtime。
+2. PortableContainerData 导出稳定 ID 和 Array[Vector2i] storage layout。Rig 从所有尺寸创建独立 grids，Backpack 当前只支持一个；Factory 拒绝无效布局。当前布局存为 Resource，旧无参 Runtime 构造用同一默认 Resource 兼容 fixture。Main 改为通过 Factory 创建原 Rig/Backpack，实际尺寸和内容不变。`get_storage_grids()` 是 Runtime 的公共查询，不负责注册；动态 populated container 登记继续留 B1。
+3. ReloadAnimationProfile 定义 weapon/magazine animation family、Tactical/Empty Animation 和各自 fallback duration。ReloadTimingProvider 用正在装入的 Magazine Definition 选匹配 profile，精确匹配优先于空 family wildcard；有 animation 用 length，无 animation 用对应 fallback。没有匹配 profile 时保留 WeaponData.reload_time。EMPTY 依据开始换弹前 chamber 是否为空，独立于原 TACTICAL/DROP 旧弹匣处理策略。最后施加已有策略 multiplier 与 Injury multiplier，不改共享 Animation/WeaponData。Stored Runtime 的 provider 无需 Firearm；Stored Inventory 换弹事务不在 B0 实现。
+4. ComputedWeaponStats/WeaponStatResolver 仅生成独立 base snapshot（RPM、range、recoil、Hip/ADS、ergonomics、bare weight、当前 magazine definition）。不接入新 gameplay modifiers、不改变 ADS/recoil 等现有行为。ADD→MULTIPLY→CLAMP 和受控 OVERRIDE 的规则写入契约，复杂 modifier 暂不实现。
+5. AttachmentSlotDefinition / AttachmentData 只做小 Resource schema：稳定 ID、slot interface、compatible interfaces/tags、weight、provided_slots 和可选 visual transform；WeaponData 有可扩展 base slots 数组。不创建 Attachment runtime、安装事务、UI、模型拼接。B1 collector 的契约使用带 kind/slot 的真实 child item edges：loaded_magazine 与 attachment:<slot path> 共存；Attachment Item 保持 InventoryItemInstance identity，提供下一级 slots。Ammo round 不伪造为 Item。完整树需要拒绝 duplicate ownership/cycles，并用于统一 registry 与 weight。B0 测试静态 slot schema 与已有 loaded magazine 可共存，不能将此描述为完成 Attachment ownership。
+6. Stable ID 由专门 Definition 的 definition_id / ItemDefinition.item_id 提供；compatibility interface 独立。不实现全局 DefinitionRegistry。所有现有专门 Ammo/Weapon/Magazine 定义显式填写，现有 Armor 与未来 Attachment/Container 同样用 ID，禁止以 display_name 持久化。
+
+验证：测试 WeaponB 使用同一 Factory/Inventory/Runtime/Firearm；不同 RPM/interface/重量与独立状态；Ammo A/B 实际 fired 引用、flesh/armor/level；不同尺寸容量弹匣实际 geometry/reload；异构 Rig/Backpack layout；无效布局原子拒绝；family profile、Tactical/Empty、animation length、Arms ×1.35、共享 Resource 不变；原 2993 全回归、逐脚本 parser、Main MCP、313 addon hash。用户禁止提交/推送/tag，所有改动留当前编辑器工作区。

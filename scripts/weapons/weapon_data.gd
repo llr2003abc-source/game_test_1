@@ -5,7 +5,15 @@ enum FireMode { SEMI, AUTO }
 enum FireModel { HITSCAN, PROJECTILE }
 
 @export var weapon_name: String = "Firearm"
-@export var compatible_magazine_type_ids: Array[StringName] = [&"magazine_1"]
+@export var definition_id: StringName
+@export var weapon_category: StringName
+@export var compatible_magazine_type_ids: Array[StringName] = []
+@export var animation_family: StringName
+@export var supported_fire_modes: Array[FireMode] = [FireMode.SEMI,FireMode.AUTO]
+@export var bare_weight_kg: float = 0.0
+@export var base_ergonomics: float = 50.0
+@export var base_attachment_slots: Array[AttachmentSlotDefinition] = []
+@export var reload_profiles: Array[ReloadAnimationProfile] = []
 @export var magazine_data: MagazineData
 @export var fire_mode: FireMode = FireMode.AUTO
 @export var fire_model: FireModel = FireModel.HITSCAN

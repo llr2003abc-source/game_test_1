@@ -1,0 +1,6 @@
+[gd_resource type="Resource" script_class="PortableContainerData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/inventory/portable_container_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+definition_id = &"backpack_1_layout"
+grid_sizes = Array[Vector2i]([Vector2i(5,5)])
