@@ -52,7 +52,7 @@ func _run() -> void:
 	var drop: InventoryItemInstance=inv.transactions.world_items.keys()[0]
 	check(drop.runtime_state.get_round_count()==29,"dropped magazine preserves remaining29 rounds")
 	var rig_item: InventoryItemInstance=inv.equipment.slots[4]
-	check(inv.transactions.move(rig_item,inv.secure.grid,Vector2i.ZERO),"rig may be stowed in secure")
+	check(not inv.transactions.move(rig_item,inv.secure.grid,Vector2i.ZERO) and inv.transactions.move(rig_item,inv.get_equipped_backpack().grid,Vector2i(1,1)),"B1 rejects Secure container and allows Rig stowed in root Backpack")
 	check(not p.get_node("EquipmentVisuals/Rig").visible and inv.reload_coordinator.select_reload_magazine()==null,"unequipped rig hides visual and disables reload source")
 	check(inv.transactions.equip(rig_item,4) and p.get_node("EquipmentVisuals/Rig").visible,"re-equip original rig restores source/visual")
 	var bag_item: InventoryItemInstance=inv.equipment.slots[5]

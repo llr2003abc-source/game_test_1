@@ -187,7 +187,7 @@ func _on_changed() -> void:
 		refresh()
 	else:
 		_pending_refresh=false
-		_header_label.text="PLAYER INVENTORY  |  %.2f kg"%inventory.get_total_weight()
+		_header_label.text=_weight_header_text()
 		for slot in equipment_views:
 			var item: InventoryItemInstance=inventory.equipment.slots[slot]
 			equipment_views[slot].text="Empty" if item==null else describe_item(item)
@@ -205,6 +205,14 @@ func label(text: String) -> Label:
 	result.text = text
 	return result
 
+func _weight_header_text() -> String:
+	var weight: float=inventory.get_total_weight()
+	var text: String="PLAYER INVENTORY  |  WEIGHT %.2f kg"%weight if weight>=0.0 else "PLAYER INVENTORY  |  WEIGHT INVALID"
+	if mode==Mode.CONTAINER_LOOT and container_access!=null:
+		var contents_weight: float=container_access.runtime.get_contents_weight()
+		text+="  |  CONTAINER %.2f kg"%contents_weight if contents_weight>=0.0 else "  |  CONTAINER WEIGHT INVALID"
+	return text
+
 func refresh() -> void:
 	_pending_refresh = false
 	_equipment_layout=[inventory.equipment.slots[4],inventory.equipment.slots[5]]
@@ -217,7 +225,7 @@ func refresh() -> void:
 	nearby_panel=null
 	nearby_scroll=null
 	var header := HBoxContainer.new()
-	_header_label=label("PLAYER INVENTORY  |  %.2f kg"%inventory.get_total_weight())
+	_header_label=label(_weight_header_text())
 	header.add_child(_header_label)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL

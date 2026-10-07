@@ -14,10 +14,9 @@ func _run() -> void:
 		check(rig.grids[0]!=rig.grids[1],"rig grids distinct objects")
 		check(backpack.grid.size==Vector2i(5,5),"backpack continuous 5x5")
 		check(secure.grid.size==Vector2i(3,3),"secure continuous 3x3")
-		var bag: Variant = item(3,4)
-		bag.definition.category=8
-		check(not backpack.grid.can_place(bag,Vector2i.ZERO),"container nesting rejected")
-		check(bag.get_size()==Vector2i(3,4),"backpack exterior independent of content")
+		var bag: Variant = InventoryItemFactory.create(load("res://data/items/backpack_1.tres"))
+		check(backpack.grid.can_place(bag,Vector2i.ZERO),"Backpack nesting allowed by B1 policy")
+		check(bag.get_size()==Vector2i(4,5),"backpack exterior independent of content")
 		for i in range(6):
 			var pocket: Variant = load("res://scripts/inventory/inventory_grid.gd").new(1,1,&"pocket")
 			check(not pocket.can_place(item(1,2),Vector2i.ZERO) and pocket.can_place(item(1,1),Vector2i.ZERO),"individual pocket cannot bridge")

@@ -3,7 +3,7 @@ extends RefCounted
 
 static func spawn(item: InventoryItemInstance, registry: InventoryTransactionService, parent: Node3D, world_transform: Transform3D) -> DroppedItem:
 	if item==null or registry.locked or not is_instance_valid(parent) or parent.is_queued_for_deletion() or registry.world_items.has(item): return null
-	if registry.get_location(item).kind not in [&"transit",&"unregistered"] or not registry.register_item(item): return null
+	if registry.get_location(item).kind not in [&"transit",&"unregistered"] or not registry.register_complete_subtree(item): return null
 	var node: DroppedItem=_prepare(item,registry)
 	registry.world_items[item]=node
 	_attach(node,parent,world_transform)

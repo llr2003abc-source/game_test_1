@@ -11,4 +11,5 @@ magazine_type_id = &"magazine_1"
 compatible_ammo_type_ids = Array[StringName]([&"weapon1_ammo"])
 animation_family = &"test_30rd"
 capacity = 30
+empty_weight_kg = 0.15
 default_ammo = ExtResource("2_ammo")

@@ -7,6 +7,7 @@
 [resource]
 script = ExtResource("1_data")
 weapon_name = "Test Rifle"
+bare_weight_kg = 3.5
 definition_id = &"test_rifle"
 weapon_category = &"rifle"
 compatible_magazine_type_ids = Array[StringName]([&"magazine_1"])

@@ -143,9 +143,11 @@ func _test_containers() -> void:
 			var node: DroppedItem=WorldItemFactory.spawn(original,inv.transactions,world,Transform3D.IDENTITY)
 			check(inv.transactions.items.has(stored) and inv.find_runtime_item(stored.runtime_state)==stored,"pre-populated container registers actual content wrapper")
 			var result: Dictionary=inv.transactions.pickup_world_item(node)
-			check(result.success==not occupied,"container only equips into empty matching slot")
+			check(result.success==(not occupied or definition_name=="backpack_1"),"B1 container equips empty slot or Backpack nests into equipped root")
 			check(original.runtime_state==runtime and contents.get_placement(stored)!=null and stored.runtime_state.get_round_count()==17,"container content and runtime survive pickup/failure")
-			if occupied:
+			if occupied and definition_name=="backpack_1":
+				check(inv.transactions.get_direct_parent(original).parent_item==inv.equipment.slots[5],"occupied Backpack slot stores complete subtree in root Backpack")
+			elif occupied:
 				check(inv.transactions.owns_world_item(original,node) and not node.is_queued_for_deletion(),"occupied slot leaves whole container in WORLD")
 			else:
 				check(inv.equipment.slots[slot]==original and contents.get_transactions()==inv.transactions,"original container/grid adopted by inventory")

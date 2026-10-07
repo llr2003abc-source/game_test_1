@@ -71,16 +71,9 @@ func find_runtime_item(runtime: RefCounted) -> InventoryItemInstance:
 	return transactions.find_runtime_item(runtime)
 
 func get_total_weight() -> float:
-	var total: float = 0.0
-	for item in transactions.items:
-		if transactions.get_location(item).kind != &"world": total += item.get_weight()
-	return total
+	return InventoryWeightCalculator.get_registry_total_weight(transactions).weight_kg
 
 func _on_inventory_changed() -> void:
-	for item in transactions.items:
-		if item.runtime_state is RigContainerRuntime:
-			for grid in item.runtime_state.grids: transactions.register_grid(grid)
-		elif item.runtime_state is BackpackContainerRuntime: transactions.register_grid(item.runtime_state.grid)
 	if firearm != null:
 		var active: InventoryItemInstance = equipment.get_active_item()
 		var runtime: WeaponRuntime = active.runtime_state as WeaponRuntime if active != null else null

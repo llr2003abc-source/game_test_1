@@ -10,6 +10,7 @@ var world_items: Dictionary = {}
 var inventory: Node
 var locked: bool = false
 var _external_owner: WeakRef
+var last_failure_reason: StringName=&"NONE"
 
 func get_external_owner() -> LootContainerRuntime:
 	return _external_owner.get_ref() if _external_owner!=null else null
@@ -17,64 +18,76 @@ func get_external_owner() -> LootContainerRuntime:
 func register_external_container(runtime: LootContainerRuntime) -> bool:
 	if runtime==null or runtime.transactions!=self or inventory!=null: return false
 	if get_external_owner()!=null: return get_external_owner()==runtime
-	var pending: Array[InventoryGrid]=[runtime.inventory_grid]
-	var examined: Array[InventoryGrid]=[]
-	var seen_items: Array[InventoryItemInstance]=[]
-	while not pending.is_empty():
-		var grid: InventoryGrid=pending.pop_front()
-		if grid==null or examined.has(grid) or not _can_adopt_grid(grid): return false
-		examined.append(grid)
-		for placement in grid.placements:
-			if seen_items.has(placement.item) or not grid.can_place(placement.item,placement.position,placement.item.rotated): return false
-			seen_items.append(placement.item)
-			pending.append_array(_contents_grids(placement.item))
-	var candidates: Array[InventoryItemInstance]=[]
-	for placement in runtime.inventory_grid.placements: candidates.append_array(_registration_group(placement.item))
-	if not _can_register(candidates): return false
-	_commit_registration(candidates)
-	for grid in examined:
-		grids.append(grid)
-		grid.set_transactions(self)
+	if not register_grid(runtime.inventory_grid): return false
 	_external_owner=weakref(runtime)
 	return true
 
 func register_grid(grid: InventoryGrid) -> bool:
+	if grid.get_owner_item()!=null and (not grids.has(grid) or grid.get_owner_item().get_owner_registry()!=self):
+		last_failure_reason=&"COMPLETE_SUBTREE_REQUIRED"
+		return false
 	if not grids.has(grid):
 		if not _can_adopt_grid(grid): return false
-		var candidates: Array[InventoryItemInstance] = []
-		for placement in grid.placements: candidates.append_array(_registration_group(placement.item))
-		if not _can_register(candidates): return false
-		_commit_registration(candidates)
+		var roots: Array[InventoryItemInstance]=[]
+		for placement in grid.placements:
+			if not grid.can_place_geometry(placement.item,placement.position,placement.item.rotated): return false
+			roots.append(placement.item)
+		var graph: Dictionary=InventoryOwnershipGraph.collect_roots(roots,self)
+		if not graph.valid or not _can_register(graph.items): return false
+		_commit_complete_subtree(graph)
 		grids.append(grid)
 		grid.set_transactions(self)
 	return true
 
 func register_item(item: InventoryItemInstance) -> bool:
-	for grid in _contents_grids(item):
-		if not _can_adopt_grid(grid): return false
-	var candidates: Array[InventoryItemInstance] = _registration_group(item)
-	if not _can_register(candidates): return false
-	_commit_registration(candidates)
+	if _requires_complete_placement(item):
+		last_failure_reason=&"COMPLETE_SUBTREE_REQUIRED"
+		return false
+	return register_complete_subtree(item)
+
+func _requires_complete_placement(item: InventoryItemInstance) -> bool:
+	if item==null or item.definition==null or items.has(item) or not item.definition.has_capability(&"portable_container"): return false
+	for grid in item.get_storage_grids():
+		if not grid.placements.is_empty(): return true
+	return false
+
+func validate_complete_subtree(item: InventoryItemInstance) -> Dictionary:
+	var graph: Dictionary=InventoryOwnershipGraph.collect_item_subtree(item,self)
+	if graph.valid and not _can_register(graph.items):
+		graph.valid=false
+		graph.reason=&"REGISTRY_CONFLICT"
+	return graph
+
+func register_complete_subtree(item: InventoryItemInstance) -> bool:
+	if locked: return false
+	var graph: Dictionary=validate_complete_subtree(item)
+	last_failure_reason=graph.reason
+	if not graph.valid: return false
+	_commit_complete_subtree(graph)
+	return true
+
+func _commit_complete_subtree(graph: Dictionary) -> void:
+	_commit_registration(graph.items)
+	for grid in graph.grids:
+		if not grids.has(grid): grids.append(grid)
+		grid.set_transactions(self)
+
+func place_complete_subtree(item: InventoryItemInstance, grid: InventoryGrid, position: Vector2i, rotation: bool=false) -> bool:
+	if locked or not grids.has(grid) or get_location(item).kind not in [&"transit",&"unregistered"] or not grid.can_place(item,position,rotation): return false
+	if not register_complete_subtree(item): return false
+	grid._commit_place(item,position,rotation)
+	changed.emit()
 	return true
 
 func _registration_group(item: InventoryItemInstance) -> Array[InventoryItemInstance]:
-	var candidates: Array[InventoryItemInstance] = [item]
-	if item.runtime_state is WeaponRuntime and item.runtime_state.loaded_magazine!=null:
-		var loaded: InventoryItemInstance=find_runtime_item(item.runtime_state.loaded_magazine)
-		if loaded!=null:
-			var location: Dictionary=get_location(loaded)
-			if location.kind not in [&"transit",&"unregistered"] and not (location.kind==&"weapon_magazine" and location.weapon==item): return [null]
-			candidates.append(loaded)
-		elif item.definition.magazine_item_definition!=null:
-			candidates.append(InventoryItemInstance.new(item.definition.magazine_item_definition,1,item.runtime_state.loaded_magazine))
-	for grid in _contents_grids(item):
-		for placement in grid.placements: candidates.append_array(_registration_group(placement.item))
-	return candidates
+	var graph: Dictionary=InventoryOwnershipGraph.collect_item_subtree(item,self)
+	if not graph.valid: return [null]
+	return graph.items
 
 func _contents_grids(item: InventoryItemInstance) -> Array[InventoryGrid]:
 	var contents: Array[InventoryGrid] = []
 	if item == null: return contents
-	if item.runtime_state!=null and item.runtime_state.has_method("get_storage_grids"): contents = item.runtime_state.get_storage_grids()
+	contents=item.get_storage_grids()
 	return contents
 
 func _can_adopt_grid(grid: InventoryGrid) -> bool:
@@ -85,8 +98,6 @@ func _can_adopt_grid(grid: InventoryGrid) -> bool:
 	return true
 
 func _can_register(candidates: Array[InventoryItemInstance], transferring_from: InventoryTransactionService = null) -> bool:
-	for identity in _runtime_owner_registries.keys():
-		if _runtime_owner_registries[identity].get_ref()==null: _runtime_owner_registries.erase(identity)
 	var pending: Dictionary = {}
 	var seen_items: Array[InventoryItemInstance] = []
 	for item in candidates:
@@ -121,7 +132,7 @@ func owns_world_item(item: InventoryItemInstance, node: Node) -> bool:
 func drop_item_to_world(item: InventoryItemInstance, parent: Node3D, world_transform: Transform3D) -> DroppedItem:
 	if locked or not items.has(item) or not is_instance_valid(parent) or parent.is_queued_for_deletion(): return null
 	var source: Dictionary=get_location(item)
-	if source.kind not in [&"grid",&"equipment",&"transit"] or not register_item(item): return null
+	if source.kind not in [&"grid",&"equipment",&"transit"] or not register_complete_subtree(item): return null
 	var node: DroppedItem=WorldItemFactory._prepare(item,self)
 	_clear_location(item,source)
 	world_items[item]=node
@@ -133,6 +144,7 @@ func preview_world_pickup(world: DroppedItem) -> PickupPreviewResult:
 	var count: int=world.item.stack_count if is_instance_valid(world) and world.item!=null else 0
 	if locked: return PickupPreviewResult.new(0,count,&"INVENTORY_LOCKED")
 	if not is_instance_valid(world) or world.is_queued_for_deletion() or not owns_world_item(world.item,world) or inventory==null: return PickupPreviewResult.new(0,count)
+	if not validate_complete_subtree(world.item).valid: return PickupPreviewResult.new(0,count,&"INVALID_SUBTREE")
 	var plan: Dictionary=PickupPlacementPolicy.plan_pickup(inventory,world.item)
 	var accepted: int=0
 	for transfer in plan.merges: accepted+=transfer.amount
@@ -160,7 +172,7 @@ func pickup_world_item(world: DroppedItem, destination: Dictionary = {}, manual:
 	destination=plan.destination
 	if destination.is_empty() and plan.merges.is_empty(): return failure
 	if not destination.is_empty() and not _valid_pickup_destination(item,destination,manual): return failure
-	if not register_item(item): return failure
+	if not register_complete_subtree(item): return failure
 	var count: int=item.stack_count
 	for transfer in plan.merges:
 		transfer.item.stack_count+=transfer.amount
@@ -205,12 +217,45 @@ func get_location(item: InventoryItemInstance) -> Dictionary:
 		for slot in inventory.equipment.slots:
 			if inventory.equipment.slots[slot] == item: return {"kind":&"equipment", "slot":slot}
 	for owner_item in items:
-		if owner_item.runtime_state is WeaponRuntime and owner_item.runtime_state.loaded_magazine == item.runtime_state and item.runtime_state is MagazineInstance:
-			return {"kind":&"weapon_magazine", "weapon":owner_item}
+		for edge in owner_item.get_owned_child_edges(self):
+			if edge.get("grid")==null and edge.child_item==item:
+				return {"kind":edge.edge_role,"weapon":owner_item,"parent_item":owner_item}
 	if world_items.has(item): return {"kind":&"world", "node":world_items[item]}
 	return {"kind":&"transit"} if items.has(item) else {"kind":&"unregistered"}
 
+func get_location_count(item: InventoryItemInstance) -> int:
+	var count: int=0
+	for grid in grids:
+		for placement in grid.placements:
+			if placement.item==item: count+=1
+	if inventory!=null:
+		for member in inventory.equipment.slots.values():
+			if member==item: count+=1
+	for parent in items:
+		for edge in parent.get_owned_child_edges(self):
+			if edge.get("grid")==null and edge.child_item==item: count+=1
+	if world_items.has(item): count+=1
+	return count
+
+func get_direct_parent(item: InventoryItemInstance) -> Dictionary:
+	var location: Dictionary=get_location(item).duplicate()
+	location["registry"]=self
+	location["parent_item"]=null
+	location["edge_role"]=location.kind
+	if location.kind in [&"grid",&"container"]:
+		location["parent_item"]=location.grid.get_owner_item()
+		location["placement"]=location.grid.get_placement(item)
+		location["edge_role"]=&"container" if location.parent_item!=null else location.kind
+	elif location.kind==&"weapon_magazine":
+		location["parent_item"]=location.weapon
+	elif location.has("weapon"):
+		location["parent_item"]=location.weapon
+	return location
+
 func place(item: InventoryItemInstance, grid: InventoryGrid, position: Vector2i, rotation: bool = false) -> bool:
+	if _requires_complete_placement(item):
+		last_failure_reason=&"COMPLETE_SUBTREE_REQUIRED"
+		return false
 	if locked or get_location(item).kind not in [&"transit",&"unregistered"]: return false
 	return move(item,grid,position,rotation)
 
@@ -218,7 +263,7 @@ func move(item: InventoryItemInstance, grid: InventoryGrid, position: Vector2i, 
 	if locked or not grids.has(grid) or not grid.can_place(item,position,rotation): return false
 	var source: Dictionary = get_location(item)
 	if source.kind in [&"weapon_magazine",&"world"]: return false
-	if not register_item(item): return false
+	if not register_complete_subtree(item): return false
 	_clear_location(item,source)
 	grid._commit_place(item,position,rotation)
 	changed.emit()
@@ -242,7 +287,7 @@ func equip(item: InventoryItemInstance, slot: int) -> bool:
 	var current: InventoryItemInstance = inventory.equipment.slots[slot]
 	if current == item: return item.get_owner_registry()==self and items.has(item) and source.kind==&"equipment" and source.slot==slot
 	if current != null: return false
-	if source.kind in [&"weapon_magazine",&"world"] or not register_item(item): return false
+	if source.kind in [&"weapon_magazine",&"world"] or not register_complete_subtree(item): return false
 	_clear_location(item,source)
 	item.rotated = false
 	inventory.equipment.slots[slot] = item

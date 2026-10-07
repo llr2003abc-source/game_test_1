@@ -2,6 +2,7 @@
 [ext_resource type="Script" path="res://scripts/weapons/ammo_data.gd" id="1"]
 [resource]
 script = ExtResource("1")
+round_weight_kg = 0.012
 definition_id = &"weapon1_level2_round"
 ammo_type_id = &"weapon1_ammo"
 ammo_name = "Weapon 1 Level-2 Ammo"

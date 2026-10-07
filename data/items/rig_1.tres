@@ -9,5 +9,6 @@ item_id = &"rig_1"
 display_name = "Rig 1"
 category = 7
 grid_size = Vector2i(2,2)
+weight = 1.0
 visual_scene = ExtResource("visual")
 container_data = ExtResource("layout")

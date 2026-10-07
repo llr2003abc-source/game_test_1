@@ -17,7 +17,9 @@ func _run() -> void:
 		else:
 			inv.get_equipped_rig().grids[0].place_item(mag,Vector2i.ZERO)
 			var rig: Variant=inv.equipment.slots[4]
-			inv.transactions.move(rig,inv.secure.grid,Vector2i.ZERO)
+			var bag:=InventoryItemFactory.create(load("res://data/items/backpack_1.tres"))
+			inv.transactions.equip(bag,5)
+			inv.transactions.move(rig,bag.runtime_state.grid,Vector2i.ZERO)
 		check(coord.select_reload_magazine()==null,"only equipped rig: "+str(source_kind))
 		for type in [1,2]: check(not coord.request_reload(type) and inv.transactions.world_items.is_empty(),"excluded sources never reload/drop")
 		coord.free()

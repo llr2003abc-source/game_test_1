@@ -1,6 +1,12 @@
 class_name WeaponRuntime
 extends RefCounted
 
+func get_owned_child_edges(parent: InventoryItemInstance, registry: InventoryTransactionService) -> Array[Dictionary]:
+	if loaded_magazine==null: return []
+	var child: InventoryItemInstance=registry.find_runtime_item(loaded_magazine) if registry!=null else null
+	if child==null and parent.owned_magazine_item!=null and parent.owned_magazine_item.runtime_state==loaded_magazine: child=parent.owned_magazine_item
+	return [{"parent_item":parent,"child_item":child,"edge_role":&"weapon_magazine","grid":null,"placement":null}]
+
 signal state_changed()
 signal reload_finished(result: WeaponReloadResult)
 
@@ -10,7 +16,34 @@ const TIME_EPSILON: float = 0.000000001
 
 var weapon_data: WeaponData
 var chambered_round: AmmoData
-var loaded_magazine: MagazineInstance
+var loaded_magazine: MagazineInstance:
+	set(value):
+		loaded_magazine=value
+		_link_inventory_magazine()
+var _inventory_item_owner: WeakRef
+
+func set_inventory_item_owner(item: InventoryItemInstance) -> void:
+	if _inventory_item_owner!=null and _inventory_item_owner.get_ref()!=null and _inventory_item_owner.get_ref()!=item: return
+	_inventory_item_owner=weakref(item)
+	_link_inventory_magazine()
+
+func _link_inventory_magazine() -> void:
+	var item: InventoryItemInstance=_inventory_item_owner.get_ref() if _inventory_item_owner!=null else null
+	if item==null or loaded_magazine==null or loaded_magazine.definition==null: return
+	var registry: InventoryTransactionService=item.get_owner_registry()
+	var existing: InventoryItemInstance=registry.find_runtime_item(loaded_magazine) if registry!=null else null
+	if existing!=null:
+		item.owned_magazine_item=existing
+		return
+	if item.owned_magazine_item!=null and item.owned_magazine_item.runtime_state==loaded_magazine: return
+	var definition: ItemDefinition=item.definition.magazine_item_definition
+	if definition==null:
+		# Legacy runtime-first callers have no external magazine ItemDefinition.
+		definition=ItemDefinition.new()
+		definition.item_id=loaded_magazine.definition.definition_id
+		definition.category=ItemDefinition.Category.MAGAZINE
+		definition.magazine_data=loaded_magazine.definition
+	item.owned_magazine_item=InventoryItemInstance.new(definition,1,loaded_magazine)
 var selected_fire_mode: WeaponData.FireMode = WeaponData.FireMode.AUTO
 var state: State = State.EMPTY
 var fire_cooldown_remaining: float = 0.0

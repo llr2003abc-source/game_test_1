@@ -15,9 +15,8 @@ static func find_destination(inventory: PlayerInventoryComponent, item: Inventor
 	if category in [ItemDefinition.Category.PRIMARY_WEAPON,ItemDefinition.Category.SECONDARY_WEAPON,ItemDefinition.Category.PISTOL,ItemDefinition.Category.MELEE,ItemDefinition.Category.RIG,ItemDefinition.Category.BACKPACK]:
 		for slot in range(6):
 			if inventory.equipment.slots[slot]==null and inventory.equipment.can_equip(item,slot): return {"kind":&"equipment","slot":slot}
-		if category in [ItemDefinition.Category.RIG,ItemDefinition.Category.BACKPACK]: return {}
 		var bag: BackpackContainerRuntime=inventory.get_equipped_backpack()
-		return _find_in_grids(item,[bag.grid]) if bag!=null else {}
+		return _find_in_grids(item,[bag.grid],category==ItemDefinition.Category.BACKPACK) if bag!=null else {}
 	if category==ItemDefinition.Category.MAGAZINE:
 		var candidates: Array[InventoryGrid]=[]
 		var rig: RigContainerRuntime=inventory.get_equipped_rig()
@@ -42,8 +41,11 @@ static func plan_pickup(inventory: PlayerInventoryComponent, item: InventoryItem
 	var destination: Dictionary=find_destination(inventory,item) if remainder>0 else {}
 	return {"merges":transfers,"destination":destination}
 
-static func _find_in_grids(item: InventoryItemInstance, grids: Array[InventoryGrid]) -> Dictionary:
+static func _find_in_grids(item: InventoryItemInstance, grids: Array[InventoryGrid], allow_rotation: bool = false) -> Dictionary:
 	for grid in grids:
 		var position: Vector2i=grid.find_first_free_position(item,item.rotated)
 		if position.x>=0: return {"kind":&"grid","grid":grid,"position":position,"rotated":item.rotated}
+		if allow_rotation:
+			position=grid.find_first_free_position(item,not item.rotated)
+			if position.x>=0: return {"kind":&"grid","grid":grid,"position":position,"rotated":not item.rotated}
 	return {}
